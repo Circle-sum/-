@@ -27,11 +27,11 @@ async (page) => {
     game.charGuardT = 0; game.props = [{ type: 'hurdle', x: 0, z: game.player.z + .3 }]; updatePlaying(.016);
     assert(game.deadT > 0, 'Gold shield cannot trigger twice');
     clean(0); assert(!game.charSkillUsed && !game.charGuardT, 'Restart restores skill');
-    clean(1); game.props = [{ type: 'hurdle', x: 0, z: .3 }]; updatePlaying(.016);
+    clean(1); game.props = [{ type: 'hurdle', x: 0, z: .3 }]; useCharacterSkill(); updatePlaying(.016);
     assert(!game.deadT && game.charSkillUsed && !game.props.length, 'Shovel removes hurdle');
-    clean(1); game.props = [{ type: 'gate', x: 0, z: .3, full: true }]; updatePlaying(.016);
+    clean(1); game.props = [{ type: 'gate', x: 0, z: .3, full: true }]; useCharacterSkill(); updatePlaying(.016);
     assert(!game.deadT && game.charSkillUsed && !game.props.length, 'Shovel removes gate');
-    clean(1); game.props = [{ type: 'jelly', x: 0, z: .3 }]; updatePlaying(.016);
+    clean(1); game.props = [{ type: 'jelly', x: 0, z: .3 }]; useCharacterSkill(); updatePlaying(.016);
     assert(!game.deadT && game.charSkillUsed, 'Shovel removes jellyfish');
     clean(1); game.props = [{ type: 'train', x: 0, z: 6.2, len: 12, hw: .95, h: 2.35 }]; updatePlaying(.016);
     assert(game.deadT > 0 && !game.charSkillUsed, 'Train collision uses front edge and cannot be shoveled');

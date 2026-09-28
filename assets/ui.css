@@ -21,6 +21,8 @@ button:focus-visible { outline: 3px solid #ec684e; outline-offset: 5px; }
 .title-cast img:nth-child(4) { height: 95%; animation-delay: -2.7s; }
 @keyframes cast-bob { 50% { transform: translateY(-7px) rotate(1deg); } }
 .title-actions { display: flex; align-items: center; gap: 16px; }
+.wallet-badge { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); background: #f5fcfa; border: 2px solid var(--ink); border-radius: 999px; padding: 7px 12px; font-size: 12px; box-shadow: 0 3px var(--ink); white-space: nowrap; }
+.wallet-badge b { color: #c16c22; font-size: 16px; }
 .btn { border: 2px solid var(--ink); border-radius: 8px; background: var(--yellow); color: var(--ink); padding: 13px 26px; font-size: 19px; box-shadow: 0 4px var(--ink); transition: transform .15s, box-shadow .15s; }
 .btn.green { background: var(--yellow); box-shadow: 0 4px var(--ink); }
 .btn span { margin-left: 18px; }
@@ -74,6 +76,7 @@ button:focus-visible { outline: 3px solid #ec684e; outline-offset: 5px; }
 .pill.score { font-size: 23px; min-width: 120px; text-align: left; }
 .pill.coin { background: var(--yellow); }
 .hud-character { left: 14px; top: auto; bottom: 94px; right: auto; background: #f5fcfadd; border: 0; border-radius: 4px; font-size: 11px; padding: 6px 9px; }
+.district-label { position: absolute; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%); color: white; font-size: 11px; font-weight: 900; letter-spacing: 1px !important; text-shadow: 0 1px 4px #174953; }
 .hud-powers { top: 88px; left: 14px; gap: 6px; }
 .power { border: 0; border-radius: 4px; padding: 6px 10px; font-size: 11px; gap: 7px; color: var(--ink); background: #f5fcfae8; }
 .power .bar { width: 56px; height: 5px; }
@@ -103,6 +106,55 @@ button:focus-visible { outline: 3px solid #ec684e; outline-offset: 5px; }
 .new-record { font-size: 14px; border-radius: 4px; }
 #howto ul { font-size: 14px; line-height: 1.9; }
 .run-recap { width: 100%; border-top: 1px solid #bed6d2; padding-top: 12px; font-size: 12px; line-height: 1.9; color: #537073; text-align: center; }
+.wallet-reward { color: #b96a21; font-weight: 900; font-size: 13px; }
+.shop-shell { width: min(1000px, 94vw); max-height: 92dvh; overflow-y: auto; padding: clamp(18px, 4vw, 38px); background: #eafaf3f2; border: 2px solid var(--ink); border-radius: 10px; box-shadow: 0 7px var(--ink); color: var(--ink); }
+.shop-top { display: flex; align-items: center; gap: 14px; color: #47737a; font-size: 11px; font-weight: 800; }
+.shop-top .wallet-badge { margin-left: auto; }
+.shop-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 32px 0 24px; border-bottom: 1px solid #bed6d2; }
+.shop-heading h2 { font-size: clamp(25px, 4vw, 42px); max-width: 620px; line-height: 1.15; margin: 8px 0 10px; }
+.shop-heading p { color: #537073; font-size: 13px; }
+.eyebrow { color: var(--aqua); font-size: 10px; font-weight: 900; letter-spacing: 2px !important; }
+.shop-stamp { min-width: 92px; padding: 12px; border: 2px solid #ef6f5a; border-radius: 50%; transform: rotate(8deg); text-align: center; color: #ef6f5a; font-size: 9px; line-height: 1.35; }
+.shop-stamp strong { font-size: 17px; }
+.shop-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 22px 0 14px; }
+.shop-item { display: flex; flex-direction: column; min-height: 245px; background: #ffffffad; border: 1px solid #c4ded6; border-radius: 8px; padding: 14px; }
+.shop-item[data-owned="true"] { border-color: var(--aqua); background: #ffffff; }
+.shop-art { position: relative; display: grid; place-items: center; min-height: 102px; margin-bottom: 12px; border-radius: 6px; overflow: hidden; background: #a9e6de; }
+.shop-art::before, .shop-art::after { content: ''; position: absolute; border: 2px solid #ffffff75; border-radius: 50%; }
+.shop-art::before { width: 78px; height: 78px; right: -18px; top: -22px; }
+.shop-art::after { width: 32px; height: 32px; left: 20px; bottom: 14px; }
+.board-art { width: 120px; height: 28px; border-radius: 60% 42% 55% 45%; transform: rotate(-8deg); background: var(--art, #ffd23e); border: 3px solid #174953; box-shadow: 0 8px 0 #17495344; z-index: 1; }
+.board-art i { display: block; width: 62%; height: 6px; margin: 8px auto; border-radius: 9px; background: #fff8; }
+.revive-art { position: relative; z-index: 1; width: 64px; height: 64px; border: 3px solid #174953; border-radius: 50%; background: #ffcf5b; }
+.revive-art::before, .revive-art::after { content: ''; position: absolute; background: #ef6f5a; border-radius: 4px; }
+.revive-art::before { width: 34px; height: 10px; left: 12px; top: 24px; }
+.revive-art::after { width: 10px; height: 34px; left: 24px; top: 12px; }
+.shop-item h3 { font-size: 16px; margin-bottom: 6px; }
+.shop-item p { min-height: 38px; color: #537073; font-size: 11px; line-height: 1.6; }
+.shop-price { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 13px; }
+.shop-price strong { color: #bd6b21; font-size: 15px; }
+.shop-buy { border: 1px solid var(--ink); border-radius: 5px; background: var(--yellow); color: var(--ink); padding: 7px 9px; font-size: 11px; font-weight: 900; cursor: pointer; }
+.shop-buy:disabled { background: #d7e6df; color: #537073; cursor: default; opacity: .8; }
+.shop-item.selected .shop-buy { background: #b6eee0; }
+.shop-note { min-height: 20px; color: #ef6f5a; font-size: 12px; font-weight: 800; text-align: center; }
+.shop-inventory { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; color: #537073; font-size: 11px; }
+.shop-inventory .shop-buy { background: #f5fcfa; }
+@media (max-width: 700px) {
+  .title-actions { gap: 8px; }
+  .wallet-badge { padding: 6px 9px; font-size: 10px; }
+  .wallet-badge b { font-size: 14px; }
+  .shop-shell { width: 94vw; padding: 16px; }
+  .shop-heading { padding: 22px 0 16px; }
+  .shop-heading p { font-size: 11px; line-height: 1.6; }
+  .shop-inventory { font-size: 10px; }
+  .shop-stamp { min-width: 76px; font-size: 8px; }
+  .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding-top: 16px; }
+  .shop-item { min-height: 216px; padding: 10px; }
+  .shop-art { min-height: 82px; }
+  .board-art { width: 96px; height: 23px; }
+  .shop-item h3 { font-size: 14px; }
+  .shop-item p { font-size: 10px; }
+}
 @media (max-width: 700px) {
   .station-label { left: 16px; top: 20px; font-size: 10px; gap: 8px; }
   #title .icon-btn { right: 16px; top: 18px; }

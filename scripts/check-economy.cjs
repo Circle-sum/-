@@ -1,0 +1,35 @@
+async (page) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('http://127.0.0.1:4173');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.locator('#title').waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: '海底商店' }).click();
+  if (await page.locator('#shopGrid [data-buy]').count() !== 4) throw new Error('Shop item count mismatch');
+  if (!await page.getByRole('button', { name: '购买 80' }).isDisabled()) throw new Error('Empty wallet should disable purchases');
+  await page.evaluate(() => { SAVE.wallet = 300; persistEconomy(); renderShop(); });
+  await page.getByRole('button', { name: '购买 80' }).click();
+  if (await page.evaluate(() => SAVE.wallet !== 220 || !SAVE.boards.includes('bubble') || SAVE.board !== 'bubble')) throw new Error('Board purchase did not persist');
+  await page.getByRole('button', { name: '购买 120' }).click();
+  if (await page.evaluate(() => SAVE.wallet !== 100 || SAVE.revive !== 1)) throw new Error('Revive purchase did not persist');
+  await page.getByRole('button', { name: '返回' }).click();
+  if (await page.locator('#shop').isVisible()) throw new Error('Shop close failed');
+  await page.getByRole('button', { name: '选择跑者', exact: true }).click();
+  await page.getByRole('button', { name: '出发', exact: true }).click();
+  await page.evaluate(() => { game.state = 'playing'; game.coins = 10; game.missionDone = [true, false, false]; game.creditedReward = 0; showOver(); });
+  if (await page.evaluate(() => SAVE.wallet !== 130 || game.creditedReward !== 30)) throw new Error('Run reward did not credit wallet once');
+  if (!await page.locator('#btnRevive').isVisible()) throw new Error('Revive button missing');
+  await page.locator('#btnRevive').click();
+  if (await page.evaluate(() => game.state !== 'playing' || SAVE.revive !== 0 || game.reviveGuardT <= 0)) throw new Error('Revive flow failed');
+  await page.evaluate(() => { game.state = 'playing'; game.coins = 12; game.missionDone = [true, false, false]; showOver(); });
+  if (await page.evaluate(() => SAVE.wallet !== 132 || game.creditedReward !== 32)) throw new Error('Second death only credited new reward');
+  await page.getByRole('button', { name: '去商店' }).click();
+  if (await page.evaluate(() => SAVE.board !== 'bubble' || !SAVE.boards.includes('bubble'))) throw new Error('Loadout lost after shop reopen');
+  await page.screenshot({ path: 'output/playwright/shop-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: 'output/playwright/shop-mobile.png' });
+  if (errors.length) throw new Error(errors.join('; '));
+  return { wallet: await page.evaluate(() => SAVE.wallet), boards: await page.evaluate(() => SAVE.boards), revive: await page.evaluate(() => SAVE.revive), errors };
+}

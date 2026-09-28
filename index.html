@@ -241,6 +241,7 @@
     <img src="assets/chars/sandy.png" alt="诸葛珊迪" draggable="false">
   </div>
   <div class="title-actions"><button class="btn green" id="btnStart">选择跑者 <span aria-hidden="true">↗</span></button><button class="btn small ghost" id="btnHow">玩法说明</button></div>
+  <div class="title-actions"><button class="btn small ghost" id="btnShop">海底商店</button><div class="wallet-badge" id="titleWallet">贝壳币 <b>0</b></div></div>
   <div class="best-badge" id="titleBest">最高分 0</div>
   <div class="title-footer"><span>四位跑者 / 四种绝活</span><span>无限旅程 · 挑战最高分</span></div>
   <button class="icon-btn" id="btnMute" title="切换声音" aria-label="切换声音"></button>
@@ -257,8 +258,9 @@
       <li>🚆 远处<b>迎面驶来的列车</b>要提前换道；也能跳上静止列车顶</li>
       <li>🏄 <b>空格 / 双击</b> 冲浪板，4 秒无敌（每局一次）</li>
       <li>🧲 磁铁吸金币，🚀 喷气背包飞高吃金币</li>
-      <li>✦ 专属技能自动生效；详细效果见角色档案</li>
-      <li>🎯 每局挑战：300 米、30 金币、15 连击</li>
+      <li>✦ <b>E / 技能按钮</b> 释放主动技能；金光护体为被动</li>
+      <li>🎯 每局挑战：300 米、30 金币、15 连击，各奖 20 贝壳币</li>
+      <li>每枚金币结算为 1 贝壳币，可购买滑板外观与复活券</li>
       <li>📱 手机：左右滑换道，上滑跳，下滑翻滚</li>
     </ul>
     <button class="btn small" id="btnHowClose">知道了</button>
@@ -285,6 +287,7 @@
   </div>
   <div class="hud-powers" id="hudPowers"></div>
   <div class="hud-character" id="hudCharacter"><i></i><span>海绵碧莲 · 金光护体</span></div>
+  <div id="districtLabel" class="district-label">01 / 菠萝街</div>
   <div class="hud-mission" id="hudMission"></div>
   <div class="route-hint" id="routeHint" hidden></div>
   <div class="hud-bottom"><div class="combo-meter"><span id="comboLabel">连击 0</span><span class="combo-track"><i id="comboBar"></i></span></div><div class="hud-actions"><button id="btnSkill" class="skill-button" title="使用角色技能（E）">角色技能 <small>E 键 / 点按</small></button><button id="btnBoard" class="board-button" title="冲浪板（空格或双击）">冲浪板 <small>空格 / 双击</small></button></div></div>
@@ -302,6 +305,7 @@
       <button class="btn green" id="btnResume">继续</button>
       <button class="btn" id="btnRestart">重新开始</button>
       <button class="btn ghost" id="btnToSelect">换角色</button>
+      <button class="btn small ghost" id="btnShopPause">海底商店</button>
     </div>
   </div>
 </div>
@@ -317,11 +321,25 @@
       <div class="stat"><b id="ovMeters">0</b><span>距离</span></div>
     </div>
     <div class="best-badge" id="ovBest">最高分 0</div>
+    <div class="wallet-reward" id="walletReward">本局获得 0 贝壳币</div>
     <div class="run-recap" id="runRecap"></div>
     <div class="row">
       <button class="btn green" id="btnAgain">再跑一次</button>
       <button class="btn ghost" id="btnChange">换角色</button>
+      <button class="btn ghost" id="btnRevive" hidden>使用复活 ×1</button>
+      <button class="btn ghost" id="btnShopOver">去商店</button>
     </div>
+  </div>
+</div>
+
+<!-- 商店 -->
+<div class="screen" id="shop" hidden>
+  <div class="shop-shell">
+    <div class="shop-top"><button class="back-button" id="btnShopClose" title="返回" aria-label="返回">←</button><span>比基尼湾补给站 / SHOP</span><div class="wallet-badge" id="shopWallet">贝壳币 <b>0</b></div></div>
+    <div class="shop-heading"><div><span class="eyebrow">UNDERSEA OUTFITTERS</span><h2>海底补给站</h2><p>1 金币 = 1 贝壳币 · 每项挑战额外 +20 · 滑板外观永久拥有</p></div><div class="shop-stamp">COLLECT<br><strong>PLAY</strong><br>REPEAT</div></div>
+    <div class="shop-inventory"><span id="shopLoadout"></span><button class="shop-buy" id="btnClassic">装备经典滑板</button></div>
+    <div class="shop-grid" id="shopGrid"></div>
+    <p class="shop-note" id="shopNote" aria-live="polite"></p>
   </div>
 </div>
 
@@ -370,11 +388,46 @@ const CHARS = CHARACTERS.map(c => ({
 }));
 
 /* ================= 存档 ================= */
+function readSaveJSON(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); } catch { return fallback; }
+}
 const SAVE = {
   best: +(localStorage.getItem('bbSubwayBest') || 0),
   mute: localStorage.getItem('bbSubwayMute') === '1',
   char: localStorage.getItem('bbSubwayChar') || 'spongebob',
+  wallet: 0, boards: ['classic'], board: 'classic', revive: 0,
 };
+const SHOP_ITEMS = [
+  { id: 'bubble', type: 'board', name: '泡泡滑板', desc: '透明泡泡拖尾，像在海底顺着潮汐滑行。', price: 80, color: '#7ee8e1' },
+  { id: 'krusty', type: 'board', name: '蟹堡王滑板', desc: '红黄招牌配色，速度感最强的一块板。', price: 160, color: '#f16b59' },
+  { id: 'jelly', type: 'board', name: '水母霓虹板', desc: '粉紫霓虹边缘，夜间街区的限定风格。', price: 280, color: '#bd8df2' },
+  { id: 'revive', type: 'revive', name: '泡泡复活券', desc: '跑酷结束时使用，保留本局金币和距离继续挑战。', price: 120, color: '#ffcf5b' },
+];
+const BOARD_STYLES = {
+  classic: { main: '#ffd23e', edge: '#e8a020', stripe: '#ffffff' },
+  bubble: { main: '#7ee8e1', edge: '#208f9d', stripe: '#eaffff' },
+  krusty: { main: '#f16b59', edge: '#9d3e37', stripe: '#ffd23e' },
+  jelly: { main: '#bd8df2', edge: '#6f4da9', stripe: '#ffd8ff' },
+};
+const ECONOMY_KEY = 'bbSubwayEconomyV1';
+function readEconomy() {
+  const raw = readSaveJSON(ECONOMY_KEY, {}) || {};
+  const count = n => Number.isSafeInteger(n) && n >= 0 ? n : 0;
+  const boards = [...new Set(['classic', ...(Array.isArray(raw.boards) ? raw.boards.filter(id => Object.hasOwn(BOARD_STYLES, id)) : [])])];
+  return { wallet: count(raw.wallet), revive: count(raw.revive), boards, board: boards.includes(raw.board) ? raw.board : 'classic' };
+}
+Object.assign(SAVE, readEconomy());
+function persistEconomy(next = SAVE) {
+  const record = { wallet: next.wallet, boards: next.boards, board: next.board, revive: next.revive };
+  try {
+    localStorage.setItem(ECONOMY_KEY, JSON.stringify(record));
+    Object.assign(SAVE, record);
+    return true;
+  } catch {
+    $('shopNote').textContent = '无法保存进度，本次购买未扣款。请检查浏览器存储空间。';
+    return false;
+  }
+}
 
 /* ================= 音频（Web Audio 合成） ================= */
 const AudioSys = {
@@ -535,6 +588,10 @@ const game = {
   routeText: '', routeZ: 0,
   coinScore: 0, taskScore: 0, maxCombo: 0,
   missionDone: [false, false, false],
+  creditedReward: 0,
+  runOpen: false,
+  reviveGuardT: 0,
+  reviveUsed: false,
   deadT: 0,
   charIdx: 0,
 };
@@ -556,6 +613,7 @@ function resetRun() {
   game.charSkillUsed = false; game.charGuardT = 0; game.charSlowT = 0; game.charHintT = 0; game.safeLane = -1;
   game.routeText = ''; game.routeZ = 0; game.coinScore = 0; game.taskScore = 0; game.maxCombo = 0;
   game.missionDone = [false, false, false]; game.jetCoinT = 0;
+  game.creditedReward = 0; game.reviveUsed = false; game.runOpen = false; game.reviveGuardT = 0;
   game.deadT = 0;
   cam.shake = 0;
   while (game.sceneryZ < 100) spawnScenery();
@@ -565,8 +623,16 @@ function resetRun() {
 const BUILD_COLORS = ['#f6c945', '#e86a4a', '#4fb6b0', '#5d9cec', '#f39b4f', '#63c08a', '#e88ab0'];
 const LANDMARKS = ['pineapple', 'moai', 'rock', 'treedome', 'krustykrab', 'chumbucket'];
 const CORAL_COLORS = ['#ff8fa8', '#ff9b5e', '#c77dff', '#ff6b6b', '#ffd23e'];
+const DISTRICTS = [
+  { name: '菠萝街', wall: ['#f6c945', '#f2a24b', '#f4d878'], roof: '#3f9c7e', sign: '#fff0a5' },
+  { name: '蟹堡码头', wall: ['#e86a4a', '#c95d48', '#f18d58'], roof: '#8f3d34', sign: '#ffd23e' },
+  { name: '水母田', wall: ['#7fc7dc', '#b78ddd', '#ed9cc6'], roof: '#6a6cc5', sign: '#ffd5ff' },
+  { name: '穹顶实验区', wall: ['#66bfa7', '#72a9d6', '#a7d8bf'], roof: '#2d7c80', sign: '#d8ffff' },
+];
 function spawnScenery() {
   const z = game.sceneryZ;
+  const district = Math.floor(Math.max(0, z) / 88) % DISTRICTS.length;
+  const districtTheme = DISTRICTS[district];
   for (const side of [-1, 1]) {
     const r = R();
     if (r < 0.30) { // 比奇堡地标
@@ -575,7 +641,8 @@ function spawnScenery() {
       const w = rr(2.6, 4.6), h = rr(2.6, 6.0), d = rr(3, 5);
       game.props.push({
         type: 'building', x: side * rr(6.8, 10.5), z: z + rr(-2, 2), w, h, d,
-        color: pick(BUILD_COLORS), side,
+        color: pick(districtTheme.wall), roof: districtTheme.roof, signColor: districtTheme.sign, district, side,
+        sign: R() < .72 ? districtTheme.name : '',
         winCols: 2 + (w / 1.5 | 0), winRows: Math.max(1, h / 1.6 | 0),
       });
     } else if (r < 0.85) { // 沉船
@@ -583,10 +650,11 @@ function spawnScenery() {
     } else { // 大珊瑚
       game.props.push({ type: 'bigcoral', x: side * rr(5.4, 6.2), z: z + rr(-2, 2), side, color: pick(CORAL_COLORS) });
     }
-    if (R() < 0.35) game.props.push({ type: 'lamp', x: side * 4.6, z: z + rr(-3, 3) });
+    if (R() < 0.5) game.props.push({ type: 'lamp', x: side * 4.6, z: z + rr(-3, 3), district });
     if (R() < 0.62) game.props.push({ type: 'kelp', x: side * rr(4.3, 4.8), z: z + rr(-3, 3), h: rr(0.9, 1.7), side });
     if (R() < 0.5) game.props.push({ type: 'coral', x: side * rr(4.6, 6.6), z: z + rr(-3, 3), side, color: pick(CORAL_COLORS) });
-    if (R() < 0.42) game.props.push({ type: 'grounddec', x: side * rr(4.6, 7.6), z: z + rr(-3, 3), side, kind: R() < 0.5 ? 'star' : 'shell' });
+    if (R() < 0.42) game.props.push({ type: 'grounddec', x: side * rr(4.6, 7.6), z: z + rr(-3, 3), side, kind: R() < 0.5 ? 'star' : 'shell', district });
+    if (R() < 0.42) game.props.push({ type: 'streetbun', x: side * rr(5.2, 6.8), z: z + rr(-3, 3), district, side });
   }
   game.sceneryZ += 8.5;
 }
@@ -797,11 +865,6 @@ function tryCollisionSkill(o) {
     skillFlash('金光护体', '#ffd23e'); updatePowers();
     return true;
   }
-  if (p.char.id === 'patrick' && ['hurdle', 'gate', 'jelly'].includes(o.type)) {
-    game.charSkillUsed = true; o.dead = true;
-    spawnDust(10); skillFlash('一铲开路', '#ff9ec4'); updatePowers();
-    return true;
-  }
   return false;
 }
 
@@ -821,6 +884,7 @@ function updatePlaying(dt) {
   game.speed *= timeScale;
   game.charSlowT = Math.max(0, game.charSlowT - dt);
   game.charGuardT = Math.max(0, game.charGuardT - dt);
+  game.reviveGuardT = Math.max(0, game.reviveGuardT - dt);
   p.z += game.speed * dt;
   game.meters = p.z * 0.62;
 
@@ -922,7 +986,7 @@ function updatePlaying(dt) {
       }
       continue;
     }
-    if (game.boardT > 0 || game.jetT > 0 || game.charGuardT > 0 || p.onTrain || o.shieldPassed) continue;
+    if (game.boardT > 0 || game.jetT > 0 || game.charGuardT > 0 || game.reviveGuardT > 0 || p.onTrain || o.shieldPassed) continue;
 
     if (o.type === 'train') {
       if (Math.abs(dz) < o.len / 2 + 0.55 && Math.abs(o.x - p.x) < o.hw + 0.6 && p.y < o.h - 0.5) { if (tryCollisionSkill(o)) continue; die(); return; }
@@ -1189,17 +1253,31 @@ function drawGround() {
 function drawBuilding(o) {
   const info = box3D(o.x, 0, o.z, o.w, o.h, o.d, shade(o.color, -18), o.color, shade(o.color, -32));
   if (!info) return;
+  const theme = DISTRICTS[o.district || 0];
+  // 不同街区使用不同的屋檐、招牌和窗灯，避免两侧建筑变成重复方块。
+  const roofL = project(o.x - o.w / 2 - .12, o.h, info.zN), roofR = project(o.x + o.w / 2 + .12, o.h, info.zN);
+  if (roofL && roofR) {
+    cx.fillStyle = o.roof || theme.roof;
+    cx.beginPath();
+    cx.moveTo(roofL.x, roofL.y); cx.lineTo(roofR.x, roofR.y);
+    cx.lineTo(roofR.x, roofR.y - Math.max(4, roofL.s * .15));
+    cx.lineTo((roofL.x + roofR.x) / 2, roofL.y - Math.max(8, roofL.s * (o.district === 2 ? .42 : .25)));
+    cx.lineTo(roofL.x, roofL.y - Math.max(4, roofL.s * .15)); cx.closePath(); cx.fill();
+    cx.strokeStyle = 'rgba(20,60,70,.28)'; cx.lineWidth = 1.5; cx.stroke();
+  }
   // 近端面窗户
   const a = project(o.x - o.w / 2 + 0.25, 0.4, info.zN);
   const b = project(o.x + o.w / 2 - 0.25, o.h - 0.4, info.zN);
   if (a && b && b.y - a.y >= 6) {
-    cx.fillStyle = 'rgba(38, 54, 82, 0.75)';
-    const cols = o.winCols, rows = o.winRows;
-    const cw = (b.x - a.x) / cols, ch = (b.y - a.y) / rows;
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-      if (((r * 3 + c + Math.floor(o.z)) % 3) === 0) continue; // 部分亮灯
-      cx.fillRect(a.x + c * cw + cw * 0.22, a.y + r * ch + ch * 0.22, cw * 0.56, ch * 0.5);
-    }
+      cx.fillStyle = theme.sign;
+      const cols = o.winCols, rows = o.winRows;
+      const cw = (b.x - a.x) / cols, ch = (b.y - a.y) / rows;
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        if (((r * 3 + c + Math.floor(o.z)) % 3) === 0) continue; // 部分亮灯
+        cx.globalAlpha = ((r + c) % 3 === 0) ? .58 : .9;
+        cx.fillRect(a.x + c * cw + cw * 0.22, a.y + r * ch + ch * 0.22, cw * 0.56, ch * 0.5);
+      }
+      cx.globalAlpha = 1;
   }
   // 可见侧面窗户
   const onRight = o.x - o.w / 2 > cam.x, onLeft = o.x + o.w / 2 < cam.x;
@@ -1212,7 +1290,7 @@ function drawBuilding(o) {
       const pr = project(sideX, wy, wz);
       if (pr) {
         const w = 0.5 * pr.s, h = 0.55 * pr.s;
-        cx.fillStyle = 'rgba(38,54,82,0.7)';
+        cx.fillStyle = theme.sign;
         cx.fillRect(pr.x - w * 0.3, pr.y - h * 0.5, w * 0.6, h);
       }
     }
@@ -1226,6 +1304,27 @@ function drawBuilding(o) {
     const pr = project(fx, fy, info.zN);
     if (pr) { cx.beginPath(); cx.arc(pr.x, pr.y, Math.max(1, 0.04 * pr.s), 0, TAU); cx.fill(); }
   }
+  if (o.sign && roofL && roofR && Math.abs(roofR.x - roofL.x) > 24) {
+    const sx = (roofL.x + roofR.x) / 2, sy = Math.min(roofL.y, roofR.y) - Math.max(7, roofL.s * .55);
+    cx.font = `900 ${Math.max(8, roofL.s * .24)}px "Trebuchet MS", sans-serif`;
+    cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillStyle = '#173f4b';
+    cx.fillRect(sx - Math.max(15, roofL.s * .8), sy - Math.max(7, roofL.s * .3), Math.max(30, roofL.s * 1.6), Math.max(14, roofL.s * .6));
+    cx.fillStyle = o.signColor || theme.sign; cx.fillText(o.sign, sx, sy);
+  }
+}
+
+function drawStreetbun(o) {
+  const b = project(o.x, 0, o.z); if (!b) return;
+  const s = b.s, h = 2.15 * s;
+  cx.save(); cx.translate(b.x, b.y);
+  cx.strokeStyle = '#416c70'; cx.lineWidth = Math.max(1.5, .05 * s);
+  cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(0, -h); cx.stroke();
+  cx.fillStyle = o.district === 1 ? '#ef6d50' : o.district === 2 ? '#b98ce9' : '#5ac1b1';
+  cx.beginPath(); cx.arc(0, -h * .78, .32 * s, 0, TAU); cx.fill();
+  cx.fillStyle = '#ffd96a'; cx.beginPath(); cx.arc(-.12 * s, -h * .86, .06 * s, 0, TAU); cx.fill();
+  cx.fillStyle = '#eafcff'; cx.beginPath(); cx.arc(.13 * s, -h * .7, .07 * s, 0, TAU); cx.fill();
+  cx.restore();
 }
 function shade(hex, amt) {
   const n = parseInt(hex.slice(1), 16);
@@ -1853,10 +1952,11 @@ function drawPlayer() {
     cx.save();
     cx.translate(pr.x, pr.y + 0.02 * s);
     const bw = c.w * 0.62 * s, bh = 0.13 * s;
-    cx.fillStyle = '#ffd23e';
+    const boardStyle = BOARD_STYLES[SAVE.board] || BOARD_STYLES.classic;
+    cx.fillStyle = boardStyle.main;
     cx.beginPath(); cx.ellipse(0, 0, bw, bh, 0, 0, TAU); cx.fill();
-    cx.strokeStyle = '#e8a020'; cx.lineWidth = Math.max(1.5, 0.04 * s); cx.stroke();
-    cx.fillStyle = '#fff';
+    cx.strokeStyle = boardStyle.edge; cx.lineWidth = Math.max(1.5, 0.04 * s); cx.stroke();
+    cx.fillStyle = boardStyle.stripe;
     cx.beginPath(); cx.ellipse(0, -0.01 * s, bw * 0.66, bh * 0.5, 0, 0, TAU); cx.fill();
     cx.restore();
   }
@@ -1978,6 +2078,7 @@ function renderWorld(dt) {
       case 'kelp': drawKelp(o); break;
       case 'coral': drawCoral(o); break;
       case 'grounddec': drawGroundDec(o); break;
+      case 'streetbun': drawStreetbun(o); break;
       case 'lamp': drawLamp(o); break;
       case 'jelly': drawJelly(o); break;
       case 'train': drawTrain(o); break;
@@ -2024,6 +2125,8 @@ function updateHUD() {
   $('routeHint').textContent = '穹顶推演 / ' + game.routeText;
   const missionHTML = '<strong>本局挑战 · 每项 +500</strong>' + MISSIONS.map((m, i) => `<span class="${game.missionDone[i] ? 'done' : ''}">${game.missionDone[i] ? '✓ ' : ''}${m.label} ${Math.min(m.value(), m.target)}/${m.target}</span>`).join('');
   if ($('hudMission').innerHTML !== missionHTML) $('hudMission').innerHTML = missionHTML;
+  const districtIndex = Math.floor(Math.max(0, game.player.z) / 88) % DISTRICTS.length;
+  $('districtLabel').textContent = `${String(districtIndex + 1).padStart(2, '0')} / ${DISTRICTS[districtIndex].name}`;
 }
 function updatePowers() {
   const box = $('hudPowers');
@@ -2034,7 +2137,7 @@ function updatePowers() {
   html += `<div class="power${game.charSkillUsed && duration <= 0 ? ' used' : ''}">✦ ${c.skill.name} · ${state}</div>`;
   if (game.magnetT > 0) html += `<div class="power">磁铁 ${game.magnetT.toFixed(1)}s<div class="bar"><i style="width:${Math.round(game.magnetT / 6 * 100)}%"></i></div></div>`;
   if (game.jetT > 0) html += `<div class="power">喷气 ${game.jetT.toFixed(1)}s<div class="bar"><i style="width:${Math.round(game.jetT / 3 * 100)}%"></i></div></div>`;
-  if (game.boardT > 0) html += `<div class="power" id="boardPill">冲浪板 ${game.boardT.toFixed(1)}s</div>`;
+  if (game.boardT > 0) html += `<div class="power" id="boardPill">${SHOP_ITEMS.find(i => i.id === SAVE.board)?.name || '经典滑板'} ${game.boardT.toFixed(1)}s</div>`;
   if (box.innerHTML !== html) box.innerHTML = html;
   $('btnSkill').disabled = !c.skill.active || game.charSkillUsed || game.state !== 'playing';
   const skillHTML = !c.skill.active ? '金光护体<small>被动生效</small>' : game.charSkillUsed ? `${c.skill.name} 已使用<small>每局一次</small>` : `${c.skill.name}<small>E 键 / 点按</small>`;
@@ -2045,7 +2148,13 @@ function updatePowers() {
 }
 
 /* ================= 界面切换 ================= */
-const screens = { boot: $('boot'), title: $('title'), select: $('select'), pause: $('pause'), over: $('over'), howto: $('howto') };
+const screens = { boot: $('boot'), title: $('title'), select: $('select'), pause: $('pause'), over: $('over'), howto: $('howto'), shop: $('shop') };
+let shopReturn = 'title';
+function updateWalletBadges() {
+  const text = `贝壳币 <b>${SAVE.wallet}</b>`;
+  $('titleWallet').innerHTML = text;
+  $('shopWallet').innerHTML = text;
+}
 function show(name) {
   for (const k in screens) screens[k].hidden = (k !== name);
   $('hud').hidden = !(name === null);
@@ -2066,6 +2175,7 @@ function gotoTitle() {
   game.player.z = 0;
   show('title');
   $('titleBest').textContent = '最高分 ' + SAVE.best;
+  updateWalletBadges();
   AudioSys.bgmStop();
 }
 function gotoSelect() {
@@ -2077,12 +2187,16 @@ function gotoSelect() {
 function startRun() {
   game.state = 'playing';
   resetRun();
+  game.runOpen = true;
   showHUD();
   updatePowers(); updateHUD();
   AudioSys.resume(); AudioSys.bgmStart();
 }
 function showOver() {
   game.state = 'over';
+  const missionReward = game.missionDone.filter(Boolean).length * 20;
+  const reward = Math.max(0, game.coins + missionReward - game.creditedReward);
+  if (reward > 0) { SAVE.wallet += reward; game.creditedReward += reward; persistEconomy(); }
   const isRecord = game.score > SAVE.best;
   if (isRecord) { SAVE.best = game.score; localStorage.setItem('bbSubwayBest', SAVE.best); }
   $('ovScore').textContent = game.score;
@@ -2090,8 +2204,61 @@ function showOver() {
   $('ovMeters').textContent = Math.floor(game.meters);
   $('ovBest').textContent = '最高分 ' + SAVE.best;
   $('newRecord').hidden = !isRecord;
+  $('walletReward').textContent = `本次结算 +${reward} 贝壳币 · 余额 ${SAVE.wallet}`;
+  $('btnRevive').hidden = !(SAVE.revive > 0 && !game.reviveUsed);
   $('runRecap').innerHTML = `${CHARS[game.charIdx].name} · 最佳连击 ${game.maxCombo}<br>完成挑战 ${game.missionDone.filter(Boolean).length}/3 · 挑战奖励 ${game.taskScore} 分`;
   show('over');
+}
+
+function reviveRun() {
+  if (game.state !== 'over' || SAVE.revive <= 0 || game.reviveUsed) return;
+  SAVE.revive--; game.reviveUsed = true; persistEconomy();
+  game.deadT = 0; game.reviveGuardT = 2.2; game.player.y = 0; game.player.vy = 0; game.player.rollT = 0;
+  game.boardT = Math.max(game.boardT, 1.5); game.boardUsed = true;
+  game.state = 'playing'; showHUD(); updatePowers(); updateHUD();
+  skillFlash('泡泡复活 · 继续冲刺', '#7ee8e1');
+  AudioSys.resume(); AudioSys.bgmStart();
+}
+
+function openShop(returnTo = 'title') {
+  shopReturn = returnTo;
+  game.state = 'shop';
+  AudioSys.bgmStop();
+  show('shop'); renderShop();
+}
+function closeShop() {
+  if (shopReturn === 'over') { game.state = 'over'; show('over'); }
+  else if (shopReturn === 'pause') { game.state = 'paused'; show('pause'); }
+  else gotoTitle();
+}
+function renderShop() {
+  updateWalletBadges();
+  const grid = $('shopGrid');
+  grid.innerHTML = SHOP_ITEMS.map(item => {
+    const owned = item.type === 'board' ? SAVE.boards.includes(item.id) : false;
+    const equipped = item.type === 'board' && SAVE.board === item.id;
+    const canBuy = SAVE.wallet >= item.price && !owned;
+    const art = item.type === 'board' ? `<div class="board-art" style="--art:${item.color}"><i></i></div>` : '<div class="revive-art"></div>';
+    const action = item.type === 'board' ? (equipped ? '已装备' : owned ? '装备' : `购买 ${item.price}`) : `购买 ${item.price}`;
+    return `<article class="shop-item${owned || equipped ? ' selected' : ''}" data-owned="${owned}" data-id="${item.id}"><div class="shop-art">${art}</div><h3>${item.name}</h3><p>${item.desc}</p><div class="shop-price"><strong>${owned || equipped ? (equipped ? '使用中' : '已拥有') : item.price + ' 贝壳币'}</strong><button class="shop-buy" data-buy="${item.id}" ${!canBuy && !owned ? 'disabled' : ''}>${action}</button></div></article>`;
+  }).join('');
+  $('shopLoadout').textContent = `当前滑板：${SAVE.board === 'classic' ? '经典滑板' : SHOP_ITEMS.find(i => i.id === SAVE.board)?.name || '经典滑板'} · 复活券 ${SAVE.revive} 张`;
+  $('btnClassic').disabled = SAVE.board === 'classic';
+  grid.querySelectorAll('[data-buy]').forEach(button => button.addEventListener('click', () => buyShopItem(button.dataset.buy)));
+}
+function buyShopItem(id) {
+  const item = SHOP_ITEMS.find(candidate => candidate.id === id);
+  if (!item) return;
+  if (item.type === 'board' && SAVE.boards.includes(item.id)) {
+    SAVE.board = item.id; persistEconomy(); renderShop(); $('shopNote').textContent = `已装备${item.name}。`;
+    return;
+  }
+  if (SAVE.wallet < item.price) { $('shopNote').textContent = `还差 ${item.price - SAVE.wallet} 贝壳币。`; return; }
+  SAVE.wallet -= item.price;
+  if (item.type === 'board') { SAVE.boards.push(item.id); SAVE.board = item.id; }
+  else SAVE.revive++;
+  persistEconomy(); renderShop(); $('shopNote').textContent = `已获得${item.name}。`;
+  AudioSys.resume(); AudioSys.tone(784, .12, 'triangle', .16);
 }
 
 /* ================= 选人界面 ================= */
@@ -2149,6 +2316,8 @@ window.addEventListener('keydown', e => {
     if (k === 'Enter' || k === ' ') startRun();
   } else if (game.state === 'over') {
     if (k === 'Enter' || k === ' ') startRun();
+  } else if (game.state === 'shop') {
+    if (k === 'Escape') closeShop();
   }
 });
 
@@ -2196,6 +2365,12 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 
 /* ================= 按钮 ================= */
 $('btnStart').addEventListener('click', () => { AudioSys.resume(); gotoSelect(); });
+$('btnShop').addEventListener('click', () => openShop('title'));
+$('btnShopClose').addEventListener('click', closeShop);
+$('btnShopPause').addEventListener('click', () => openShop('pause'));
+$('btnShopOver').addEventListener('click', () => openShop('over'));
+$('btnClassic').addEventListener('click', () => { SAVE.board = 'classic'; persistEconomy(); renderShop(); $('shopNote').textContent = '已装备经典滑板。'; });
+$('btnRevive').addEventListener('click', reviveRun);
 $('btnHow').addEventListener('click', () => { screens.title.hidden = true; screens.howto.hidden = false; });
 $('btnHowClose').addEventListener('click', () => { screens.howto.hidden = true; screens.title.hidden = false; });
 $('btnGo').addEventListener('click', () => { AudioSys.resume(); startRun(); });
@@ -2228,6 +2403,7 @@ function loop(now) {
     case 'title':
     case 'select':
     case 'boot':
+    case 'shop':
       menuUpdate(dt);
       renderWorld(dt);
       break;
