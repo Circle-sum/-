@@ -288,6 +288,7 @@
   <div class="hud-powers" id="hudPowers"></div>
   <div class="hud-character" id="hudCharacter"><i></i><span>海绵碧莲 · 金光护体</span></div>
   <div id="districtLabel" class="district-label">01 / 菠萝街</div>
+  <div id="districtBanner" class="district-banner" hidden><small>ENTERING DISTRICT</small><strong>菠萝街</strong></div>
   <div class="hud-mission" id="hudMission"></div>
   <div class="route-hint" id="routeHint" hidden></div>
   <div class="hud-bottom"><div class="combo-meter"><span id="comboLabel">连击 0</span><span class="combo-track"><i id="comboBar"></i></span></div><div class="hud-actions"><button id="btnSkill" class="skill-button" title="使用角色技能（E）">角色技能 <small>E 键 / 点按</small></button><button id="btnBoard" class="board-button" title="冲浪板（空格或双击）">冲浪板 <small>空格 / 双击</small></button></div></div>
@@ -614,6 +615,9 @@ const game = {
   reviveUsed: false,
   deadT: 0,
   charIdx: 0,
+  districtIndex: 0,
+  districtBannerT: 0,
+  skillFxT: 0,
 };
 
 function makePlayer(ci) {
@@ -635,6 +639,7 @@ function resetRun() {
   game.missionDone = [false, false, false]; game.jetCoinT = 0;
   game.creditedReward = 0; game.reviveUsed = false; game.runOpen = false; game.reviveGuardT = 0;
   game.deadT = 0;
+  game.districtIndex = 0; game.districtBannerT = 0; game.skillFxT = 0;
   cam.shake = 0;
   while (game.sceneryZ < 100) spawnScenery();
 }
@@ -652,6 +657,16 @@ const DISTRICTS = [
 function currentDistrictIndex(z) {
   const raw = Math.floor(Math.max(0, z) / 88) % DISTRICTS.length;
   return SAVE.themes.includes(DISTRICTS[raw].id) ? raw : raw < 2 ? raw : 0;
+}
+function updateDistrictState(dt) {
+  const next = currentDistrictIndex(game.player.z);
+  if (next !== game.districtIndex && game.player.z > 20) {
+    game.districtIndex = next;
+    game.districtBannerT = 2.2;
+    AudioSys.power();
+  }
+  game.districtBannerT = Math.max(0, game.districtBannerT - dt);
+  game.skillFxT = Math.max(0, game.skillFxT - dt);
 }
 function spawnScenery() {
   const z = game.sceneryZ;
@@ -818,6 +833,7 @@ function trainUnder(p) {
 }
 
 function skillFlash(text, color) {
+  game.skillFxT = 0.9;
   const cp = $('comboPop');
   cp.textContent = text;
   cp.style.color = color || '#ffd23e';
@@ -912,6 +928,7 @@ function updatePlaying(dt) {
   game.reviveGuardT = Math.max(0, game.reviveGuardT - dt);
   p.z += game.speed * dt;
   game.meters = p.z * 0.62;
+  updateDistrictState(dt);
 
   // 动态对向列车移动
   for (const o of game.props) {
@@ -1048,9 +1065,10 @@ function collectCoin(o) {
   if (pr) for (let i = 0; i < 6; i++) {
     game.particles.push({ x: pr.x, y: pr.y, vx: rr(-90, 90), vy: rr(-160, -40), life: rr(0.3, 0.55), t: 0, color: '#ffd23e', size: rr(3, 6) });
   }
-  if (game.combo > 0 && game.combo % 15 === 0) {
+  if (pr) game.particles.push({ x: pr.x, y: pr.y, vx: 0, vy: 0, life: .42, t: 0, color: '#fff3a6', size: 6, shape: 'ring' });
+  if (game.combo > 0 && game.combo % 5 === 0) {
     const cp = $('comboPop');
-    cp.style.color = '#ffd23e';
+    cp.style.color = game.combo >= 15 ? '#ffd23e' : '#d8ffff';
     cp.textContent = game.combo + ' 连击!';
     cp.classList.remove('go'); void cp.offsetWidth; cp.classList.add('go');
   }
@@ -1227,6 +1245,13 @@ function drawSky() {
     const fy = H * (0.12 + (i % 3) * 0.07);
     drawFishSilhouette(fx, fy, 9 + (i % 2) * 5, i % 2 ? -1 : 1);
   }
+  // 更近一层的小鱼群：速度略快，形成海底纵深。
+  cx.fillStyle = 'rgba(242,255,239,0.38)';
+  for (let i = 0; i < 9; i++) {
+    const fx = ((game.time * 0.026 + i * .17) % 1.25 - .12) * W;
+    const fy = cam.horizon * (.42 + (i % 4) * .08) + Math.sin(game.time * 1.6 + i) * 3;
+    drawFishSilhouette(fx, fy, 4 + (i % 3), i % 2 ? -1 : 1);
+  }
 }
 
 function drawGround() {
@@ -1275,6 +1300,27 @@ function drawGround() {
   }
 }
 
+function drawCaustics() {
+  const p = game.player;
+  if (!p) return;
+  cx.save();
+  cx.lineCap = 'round';
+  for (let i = 0; i < 9; i++) {
+    const z = p.z + 7 + i * 11 + Math.sin(game.time * .9 + i) * 1.8;
+    const side = i % 2 ? 1 : -1;
+    const x0 = side * (3.9 + (i % 3) * .55), x1 = side * (5.9 + (i % 4) * .45);
+    const a = project(x0, .04, z), b = project(x1, .04, z + 2.8);
+    if (!a || !b) continue;
+    const alpha = .08 + (i % 3) * .025;
+    cx.strokeStyle = `rgba(255,245,182,${alpha})`;
+    cx.lineWidth = Math.max(1, a.s * .045);
+    cx.beginPath(); cx.moveTo(a.x, a.y);
+    cx.quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 - a.s * .3, b.x, b.y);
+    cx.stroke();
+  }
+  cx.restore();
+}
+
 function drawBuilding(o) {
   const info = box3D(o.x, 0, o.z, o.w, o.h, o.d, shade(o.color, -18), o.color, shade(o.color, -32));
   if (!info) return;
@@ -1299,7 +1345,7 @@ function drawBuilding(o) {
       const cw = (b.x - a.x) / cols, ch = (b.y - a.y) / rows;
       for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
         if (((r * 3 + c + Math.floor(o.z)) % 3) === 0) continue; // 部分亮灯
-        cx.globalAlpha = ((r + c) % 3 === 0) ? .58 : .9;
+        cx.globalAlpha = Math.max(.35, (((r + c) % 3 === 0) ? .58 : .9) + Math.sin(game.time * 1.8 + o.z * .07 + r * 2.4 + c) * .08);
         cx.fillRect(a.x + c * cw + cw * 0.22, a.y + r * ch + ch * 0.22, cw * 0.56, ch * 0.5);
       }
       cx.globalAlpha = 1;
@@ -1331,18 +1377,22 @@ function drawBuilding(o) {
   }
   if (o.sign && roofL && roofR && Math.abs(roofR.x - roofL.x) > 24) {
     const sx = (roofL.x + roofR.x) / 2, sy = Math.min(roofL.y, roofR.y) - Math.max(7, roofL.s * .55);
+    const signW = Math.max(30, roofL.s * .8), signH = Math.max(14, roofL.s * .3);
+    cx.save(); cx.translate(sx, sy); cx.rotate(Math.sin(game.time * 1.4 + o.z * .06) * .035);
     cx.font = `900 ${Math.max(8, roofL.s * .24)}px "Trebuchet MS", sans-serif`;
     cx.textAlign = 'center'; cx.textBaseline = 'middle';
     cx.fillStyle = '#173f4b';
-    cx.fillRect(sx - Math.max(15, roofL.s * .8), sy - Math.max(7, roofL.s * .3), Math.max(30, roofL.s * 1.6), Math.max(14, roofL.s * .6));
-    cx.fillStyle = o.signColor || theme.sign; cx.fillText(o.sign, sx, sy);
+    cx.fillRect(-signW, -signH, signW * 2, signH * 2);
+    cx.fillStyle = o.signColor || theme.sign; cx.fillText(o.sign, 0, 0);
+    cx.restore();
   }
 }
 
 function drawStreetbun(o) {
   const b = project(o.x, 0, o.z); if (!b) return;
   const s = b.s, h = 2.15 * s;
-  cx.save(); cx.translate(b.x, b.y);
+  cx.save(); cx.translate(b.x + Math.sin(game.time * 1.7 + o.z * .1) * .08 * s, b.y);
+  cx.rotate(Math.sin(game.time * 1.7 + o.z * .1) * .06);
   cx.strokeStyle = '#416c70'; cx.lineWidth = Math.max(1.5, .05 * s);
   cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(0, -h); cx.stroke();
   cx.fillStyle = o.district === 1 ? '#ef6d50' : o.district === 2 ? '#b98ce9' : '#5ac1b1';
@@ -2064,8 +2114,10 @@ function drawParticles(dt) {
     if (pt.t > pt.life) continue;
     const k = 1 - pt.t / pt.life;
     cx.globalAlpha = k;
-    cx.fillStyle = pt.color;
-    cx.beginPath(); cx.arc(pt.x, pt.y, pt.size * k + 1, 0, TAU); cx.fill();
+    cx.strokeStyle = pt.color; cx.fillStyle = pt.color;
+    cx.beginPath();
+    if (pt.shape === 'ring') { cx.lineWidth = Math.max(1, pt.size * .16); cx.arc(pt.x, pt.y, pt.size * (1.2 + (1 - k) * 2.8), 0, TAU); cx.stroke(); }
+    else { cx.arc(pt.x, pt.y, pt.size * k + 1, 0, TAU); cx.fill(); }
     pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vy += 480 * dt;
   }
   cx.globalAlpha = 1;
@@ -2078,13 +2130,42 @@ function drawSpeedFx() {
   cx.strokeStyle = `rgba(255,255,255,${0.25 * v})`;
   cx.lineWidth = 2;
   for (let i = 0; i < 10; i++) {
-    const ang = R() * TAU;
-    const r0 = Math.min(W, H) * (0.38 + R() * 0.2);
+    const ang = game.time * (.7 + i * .03) + i * 0.63;
+    const r0 = Math.min(W, H) * (0.38 + ((Math.sin(i * 9.7) + 1) * .1));
     const x0 = W / 2 + Math.cos(ang) * r0, y0 = H * 0.55 + Math.sin(ang) * r0;
     cx.beginPath(); cx.moveTo(x0, y0);
     cx.lineTo(W / 2 + Math.cos(ang) * (r0 + 60 * v), H * 0.55 + Math.sin(ang) * (r0 + 60 * v));
     cx.stroke();
   }
+}
+
+function drawSkillFx() {
+  if (game.skillFxT <= 0 || !game.player) return;
+  const p = game.player, pr = project(p.x, p.y + .8, p.z);
+  if (!pr) return;
+  const s = pr.s, k = clamp(game.skillFxT / .9, 0, 1);
+  cx.save(); cx.translate(pr.x, pr.y - .45 * s); cx.globalAlpha = k;
+  if (p.char.id === 'patrick') {
+    cx.strokeStyle = '#f16b59'; cx.lineWidth = Math.max(2, s * .045);
+    for (let i = 0; i < 5; i++) {
+      const a = game.time * 2 + i / 5 * TAU;
+      cx.beginPath(); cx.moveTo(Math.cos(a) * s * .18, Math.sin(a) * s * .18); cx.lineTo(Math.cos(a) * s * .8, Math.sin(a) * s * .8); cx.stroke();
+    }
+  } else if (p.char.id === 'squidward') {
+    cx.strokeStyle = '#62dfd2'; cx.lineWidth = Math.max(2, s * .035);
+    for (let i = 0; i < 3; i++) {
+      const r = (0.35 + i * .22 + (1 - k) * .35) * s;
+      cx.beginPath(); cx.arc(0, 0, r, -Math.PI * .7, Math.PI * .7); cx.stroke();
+    }
+  } else if (p.char.id === 'sandy') {
+    cx.strokeStyle = '#d8ffff'; cx.lineWidth = Math.max(1.5, s * .025);
+    for (let i = -1; i <= 1; i++) { cx.beginPath(); cx.moveTo(i * s * .3, -s * .8); cx.lineTo(i * s * .3, s * .1); cx.stroke(); }
+    cx.beginPath(); cx.moveTo(-s * .8, 0); cx.lineTo(s * .8, 0); cx.stroke();
+  } else {
+    cx.strokeStyle = '#ffe059'; cx.lineWidth = Math.max(2, s * .04);
+    cx.beginPath(); cx.arc(0, 0, (0.45 + (1 - k) * .3) * s, 0, TAU); cx.stroke();
+  }
+  cx.restore();
 }
 
 function renderWorld(dt) {
@@ -2094,6 +2175,7 @@ function renderWorld(dt) {
   drawSky();
   drawSnow();
   drawGround();
+  drawCaustics();
   if (game.player.char.id === 'sandy' && game.charHintT > 0 && game.safeLane >= 0 && (game.state === 'playing' || game.state === 'paused')) {
     const x = LANES[game.safeLane], z = game.player.z;
     quadFill([project(x - .8, .13, z + 2), project(x + .8, .13, z + 2), project(x + .8, .13, Math.min(z + 24, game.routeZ + 3)), project(x - .8, .13, Math.min(z + 24, game.routeZ + 3))], '#a7ffee58');
@@ -2136,6 +2218,7 @@ function renderWorld(dt) {
   mist.addColorStop(0, '#b4e5cd66'); mist.addColorStop(1, '#b4e5cd00');
   cx.fillStyle = mist; cx.fillRect(0, cam.horizon - 8, W, H * .16 + 8);
   drawPlayer();
+  drawSkillFx();
   drawParticles(dt);
   if (game.state === 'playing') drawSpeedFx();
   drawBubbles();
@@ -2170,6 +2253,9 @@ function updateHUD() {
   if ($('hudMission').innerHTML !== missionHTML) $('hudMission').innerHTML = missionHTML;
   const districtIndex = currentDistrictIndex(game.player.z);
   $('districtLabel').textContent = `${String(districtIndex + 1).padStart(2, '0')} / ${DISTRICTS[districtIndex].name}`;
+  const banner = $('districtBanner');
+  banner.hidden = game.districtBannerT <= 0;
+  if (!banner.hidden) banner.querySelector('strong').textContent = DISTRICTS[districtIndex].name;
 }
 function updatePowers() {
   const box = $('hudPowers');

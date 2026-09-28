@@ -75,6 +75,7 @@ async (page) => {
     return results;
   });
   await page.getByRole('button', { name: '出发', exact: true }).click();
+  await page.evaluate(() => { game.props = []; game.spawnZ = game.player.z + 1000; game.sceneryZ = game.player.z + 1000; });
   if (!await page.locator('#btnSkill').isEnabled()) throw new Error('Active character skill button is disabled');
   await page.locator('#btnSkill').click();
   if (!await page.evaluate(() => game.charSkillUsed && game.charHintT === 5)) throw new Error('Skill button did not activate planner');

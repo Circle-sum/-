@@ -77,6 +77,11 @@ button:focus-visible { outline: 3px solid #ec684e; outline-offset: 5px; }
 .pill.coin { background: var(--yellow); }
 .hud-character { left: 14px; top: auto; bottom: 94px; right: auto; background: #f5fcfadd; border: 0; border-radius: 4px; font-size: 11px; padding: 6px 9px; }
 .district-label { position: absolute; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%); color: white; font-size: 11px; font-weight: 900; letter-spacing: 1px !important; text-shadow: 0 1px 4px #174953; }
+.district-banner { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 18px 10px; border: 2px solid #fff; border-radius: 6px; background: #174953d9; color: #fff; box-shadow: 0 4px #0d2d36aa; text-align: center; animation: districtArrive .65s ease both; }
+.district-banner[hidden] { display: none; }
+.district-banner small { color: #bffce0; font-size: 9px; letter-spacing: 2px !important; }
+.district-banner strong { font-size: clamp(20px, 4vw, 34px); line-height: 1; }
+@keyframes districtArrive { 0% { opacity: 0; transform: translateX(-50%) translateY(-16px) scale(.86); } 70% { opacity: 1; transform: translateX(-50%) translateY(2px) scale(1.04); } 100% { transform: translateX(-50%) translateY(0) scale(1); } }
 .hud-powers { top: 88px; left: 14px; gap: 6px; }
 .power { border: 0; border-radius: 4px; padding: 6px 10px; font-size: 11px; gap: 7px; color: var(--ink); background: #f5fcfae8; }
 .power .bar { width: 56px; height: 5px; }
