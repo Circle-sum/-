@@ -272,7 +272,7 @@
   <div class="select-top"><button class="back-button" id="btnBackTitle" title="返回首页" aria-label="返回首页">←</button><span>小队档案 / CREW FILES</span><span id="crewNumber">01 / 04</span></div>
   <div class="select-head"><h2>这次，谁来领跑？</h2><p>选一位伙伴，带上你的拿手好戏。</p></div>
   <div class="character-showcase">
-    <div class="portrait-stage"><span class="portrait-number" aria-hidden="true" id="portraitNumber">01</span><img id="heroPortrait" src="assets/chars/spongebob.png" alt="海绵碧莲" draggable="false"><span class="portrait-caption">比基尼湾常驻跑者</span></div>
+    <div class="portrait-stage" id="portraitStage"><span class="portrait-kicker">RUNNER / 01</span><span class="portrait-number" aria-hidden="true" id="portraitNumber">01</span><img id="heroPortrait" src="assets/chars/spongebob.png" alt="海绵碧莲" draggable="false"><div class="portrait-footer"><span class="portrait-caption">比基尼湾常驻跑者</span><span class="portrait-status">READY TO RUN</span></div></div>
     <div class="selected-profile" id="selectedProfile" aria-live="polite"></div>
   </div>
   <div class="select-bottom"><div class="chars" id="charList" role="group" aria-label="选择角色"></div><button class="btn green" id="btnGo">出发 <span aria-hidden="true">↗</span></button></div>
@@ -616,6 +616,7 @@ const game = {
   deadT: 0,
   charIdx: 0,
   districtIndex: 0,
+  districtAnnounced: [],
   districtBannerT: 0,
   skillFxT: 0,
 };
@@ -639,7 +640,7 @@ function resetRun() {
   game.missionDone = [false, false, false]; game.jetCoinT = 0;
   game.creditedReward = 0; game.reviveUsed = false; game.runOpen = false; game.reviveGuardT = 0;
   game.deadT = 0;
-  game.districtIndex = 0; game.districtBannerT = 0; game.skillFxT = 0;
+  game.districtIndex = 0; game.districtAnnounced = [0]; game.districtBannerT = 0; game.skillFxT = 0;
   cam.shake = 0;
   while (game.sceneryZ < 100) spawnScenery();
 }
@@ -648,6 +649,12 @@ function resetRun() {
 const BUILD_COLORS = ['#f6c945', '#e86a4a', '#4fb6b0', '#5d9cec', '#f39b4f', '#63c08a', '#e88ab0'];
 const LANDMARKS = ['pineapple', 'moai', 'rock', 'treedome', 'krustykrab', 'chumbucket'];
 const CORAL_COLORS = ['#ff8fa8', '#ff9b5e', '#c77dff', '#ff6b6b', '#ffd23e'];
+const DISTRICT_LANDMARKS = [
+  ['pineapple', 'rock', 'moai'],
+  ['krustykrab', 'wreck', 'chumbucket'],
+  ['bigcoral', 'rock', 'jelly'],
+  ['treedome', 'chumbucket', 'bigcoral'],
+];
 const DISTRICTS = [
   { id: 'pineapple', name: '菠萝街', wall: ['#f6c945', '#f2a24b', '#f4d878'], roof: '#3f9c7e', sign: '#fff0a5' },
   { id: 'krusty', name: '蟹堡码头', wall: ['#e86a4a', '#c95d48', '#f18d58'], roof: '#8f3d34', sign: '#ffd23e' },
@@ -662,8 +669,11 @@ function updateDistrictState(dt) {
   const next = currentDistrictIndex(game.player.z);
   if (next !== game.districtIndex && game.player.z > 20) {
     game.districtIndex = next;
-    game.districtBannerT = 2.2;
-    AudioSys.power();
+    if (!game.districtAnnounced.includes(next)) {
+      game.districtAnnounced.push(next);
+      game.districtBannerT = 2.2;
+      AudioSys.power();
+    }
   }
   game.districtBannerT = Math.max(0, game.districtBannerT - dt);
   game.skillFxT = Math.max(0, game.skillFxT - dt);
@@ -675,13 +685,14 @@ function spawnScenery() {
   for (const side of [-1, 1]) {
     const r = R();
     if (r < 0.30) { // 比奇堡地标
-      game.props.push({ type: pick(LANDMARKS), x: side * rr(5.8, 6.4), z: z + rr(-2, 2), s: side });
+      const landmark = pick(DISTRICT_LANDMARKS[district]);
+      game.props.push({ type: landmark, x: side * rr(5.8, 6.4), z: z + rr(-2, 2), s: side, side, phase: R() * TAU });
     } else if (r < 0.70) { // 海底普通建筑
       const w = rr(2.6, 4.6), h = rr(2.6, 6.0), d = rr(3, 5);
       game.props.push({
         type: 'building', x: side * rr(6.8, 10.5), z: z + rr(-2, 2), w, h, d,
         color: pick(districtTheme.wall), roof: districtTheme.roof, signColor: districtTheme.sign, district, side,
-        sign: R() < .72 ? districtTheme.name : '',
+        sign: '',
         winCols: 2 + (w / 1.5 | 0), winRows: Math.max(1, h / 1.6 | 0),
       });
     } else if (r < 0.85) { // 沉船
@@ -709,6 +720,9 @@ function addTrain(lane, z0, len, moving) {
     color: pick(['#e84b3c', '#f6b93b', '#38ada9', '#78e08f', '#e8a1b0', '#5d9cec', '#c77dff']),
     style: pick(TRAIN_STYLES), moving: !!moving, vel: moving ? -rr(9, 13) : 0,
   });
+}
+function propTailZ(o) {
+  return o.type === 'train' ? o.z + o.len / 2 : o.z;
 }
 function spawnChunk() {
   const z = game.spawnZ;
@@ -787,7 +801,7 @@ function menuUpdate(dt) {
     game.spawnZ += rr(20, 36);
   }
   // 回收
-  game.props = game.props.filter(o => o.z > p.z - 12);
+  game.props = game.props.filter(o => propTailZ(o) > p.z - 12);
 }
 
 /* ================= 玩家物理与碰撞 ================= */
@@ -992,7 +1006,7 @@ function updatePlaying(dt) {
   } else {
     game.safeLane = -1; game.routeText = ''; game.routeZ = 0;
   }
-  game.props = game.props.filter(o => o.z > cam.z - 4 && !(o.type === 'coin' && o.got));
+  game.props = game.props.filter(o => propTailZ(o) > cam.z - 3 && !(o.type === 'coin' && o.got));
 
   // 磁铁吸金币
   if (game.magnetT > 0) {
@@ -1151,7 +1165,8 @@ function quadFill(pts, fill, stroke, lw) {
   if (stroke) { cx.strokeStyle = stroke; cx.lineWidth = lw || 1; cx.stroke(); }
 }
 function box3D(x, y0, z, w, h, l, topColor, frontColor, sideColor) {
-  const zN = Math.max(z - l / 2, cam.z + 4.9), zF = z + l / 2;
+  const nearClip = l > 5 ? 1.2 : 4.9;
+  const zN = Math.max(z - l / 2, cam.z + nearClip), zF = z + l / 2;
   if (zN >= zF) return;
   const hl = w / 2;
   // 侧面（按相机方位画可见侧）
@@ -1375,17 +1390,29 @@ function drawBuilding(o) {
     const pr = project(fx, fy, info.zN);
     if (pr) { cx.beginPath(); cx.arc(pr.x, pr.y, Math.max(1, 0.04 * pr.s), 0, TAU); cx.fill(); }
   }
-  if (o.sign && roofL && roofR && Math.abs(roofR.x - roofL.x) > 24) {
-    const sx = (roofL.x + roofR.x) / 2, sy = Math.min(roofL.y, roofR.y) - Math.max(7, roofL.s * .55);
-    const signW = Math.max(30, roofL.s * .8), signH = Math.max(14, roofL.s * .3);
-    cx.save(); cx.translate(sx, sy); cx.rotate(Math.sin(game.time * 1.4 + o.z * .06) * .035);
-    cx.font = `900 ${Math.max(8, roofL.s * .24)}px "Trebuchet MS", sans-serif`;
-    cx.textAlign = 'center'; cx.textBaseline = 'middle';
-    cx.fillStyle = '#173f4b';
-    cx.fillRect(-signW, -signH, signW * 2, signH * 2);
-    cx.fillStyle = o.signColor || theme.sign; cx.fillText(o.sign, 0, 0);
-    cx.restore();
+  drawDistrictFacade(o, info, theme);
+}
+
+function drawDistrictFacade(o, info, theme) {
+  const p = project(o.x, Math.min(o.h * .72, 2.2), info.zN);
+  if (!p || p.s < 5) return;
+  const s = p.s;
+  cx.save(); cx.translate(p.x, p.y);
+  if (o.district === 0) {
+    cx.strokeStyle = '#fff4b880'; cx.lineWidth = Math.max(1.5, s * .035);
+    for (const dx of [-.42, .42]) { cx.beginPath(); cx.arc(dx * s, 0, .18 * s, 0, TAU); cx.stroke(); }
+  } else if (o.district === 1) {
+    cx.strokeStyle = '#6f302a80'; cx.lineWidth = Math.max(1.5, s * .045);
+    for (let i = -1; i <= 1; i++) { cx.beginPath(); cx.moveTo(i * .55 * s, -.55 * s); cx.lineTo(i * .55 * s, .5 * s); cx.stroke(); }
+  } else if (o.district === 2) {
+    cx.strokeStyle = '#f4d7ff99'; cx.lineWidth = Math.max(1, s * .03);
+    for (let i = 0; i < 3; i++) { cx.beginPath(); cx.arc((i - 1) * .38 * s, Math.sin(game.time * 1.4 + o.z + i) * .08 * s, (.08 + i * .025) * s, 0, TAU); cx.stroke(); }
+  } else {
+    cx.strokeStyle = '#d8ffffaa'; cx.lineWidth = Math.max(1.5, s * .035);
+    cx.beginPath(); cx.arc(0, .22 * s, .7 * s, Math.PI, TAU); cx.stroke();
+    cx.beginPath(); cx.moveTo(-.42 * s, -.45 * s); cx.lineTo(.42 * s, -.45 * s); cx.stroke();
   }
+  cx.restore();
 }
 
 function drawStreetbun(o) {
@@ -2433,8 +2460,11 @@ function buildCharList() {
   const profile = $('selectedProfile');
   const updateProfile = () => {
     const c = CHARS[game.charIdx];
-    profile.innerHTML = `<div class="profile-title">${c.title}</div><h3>${c.name}</h3><p class="profile-tag">「${c.tag}」</p><p class="profile-desc">${c.desc}</p><div class="profile-skill"><span>专属技能 / ${c.skill.active ? '主动触发' : '被动生效'}</span><strong>${c.skill.name}</strong><p>${c.skill.effect}</p></div><div class="profile-role"><span>风格 <b>${c.role}</b></span><span>特长 <b>${c.trait}</b></span></div>`;
+    profile.innerHTML = `<div class="profile-eyebrow">PROFILE / ${String(game.charIdx + 1).padStart(2, '0')}</div><div class="profile-heading"><div><div class="profile-title">${c.title}</div><h3>${c.name}</h3><p class="profile-tag">「${c.tag}」</p></div><i class="profile-accent" style="background:${c.accent}"></i></div><p class="profile-desc">${c.desc}</p><div class="profile-skill"><div class="skill-head"><span>专属技能 · ${c.skill.active ? '主动触发' : '被动生效'}</span><em>${c.skill.active ? '按 E 使用' : '自动生效'}</em></div><strong>${c.skill.name}</strong><p>${c.skill.effect}</p></div><div class="profile-role"><span>风格 <b>${c.role}</b></span><span>特长 <b>${c.trait}</b></span></div>`;
     $('heroPortrait').src = c.file; $('heroPortrait').alt = c.name;
+    $('portraitStage').style.setProperty('--char-accent', c.accent);
+    $('portraitStage').querySelector('.portrait-kicker').textContent = `RUNNER / ${String(game.charIdx + 1).padStart(2, '0')}`;
+    $('portraitStage').querySelector('.portrait-caption').textContent = c.title;
     $('portraitNumber').textContent = String(game.charIdx + 1).padStart(2, '0');
     $('crewNumber').textContent = String(game.charIdx + 1).padStart(2, '0') + ' / 04';
     $('hudCharacter').innerHTML = `<i style="background:${c.accent}"></i><span>${c.name} · ${c.skill.name}</span>`;

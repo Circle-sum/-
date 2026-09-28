@@ -71,11 +71,12 @@ async (page) => {
     assert(!game.deadT && !game.charSkillUsed, 'Roll clears a gate without consuming skill');
     clean(0); game.player.z = 1600; camUpdate(1); renderWorld(0);
     assert(project(0, .1, cam.z + .5) !== null && project(0, .1, game.player.z + 160) !== null, 'Track projection remains valid past 1000 meters');
+    assert(propTailZ({ type: 'train', z: cam.z - 2, len: 12 }) > cam.z - 3, 'Train cleanup waits for the rear carriage');
     clean(3); gotoSelect(); buildCharList();
     return results;
   });
   await page.getByRole('button', { name: '出发', exact: true }).click();
-  await page.evaluate(() => { game.props = []; game.spawnZ = game.player.z + 1000; game.sceneryZ = game.player.z + 1000; });
+  await page.evaluate(() => { game.props = []; game.spawnZ = game.player.z + 1000; game.sceneryZ = game.player.z + 1000; game.state = 'playing'; game.deadT = 0; showHUD(); updatePowers(); });
   if (!await page.locator('#btnSkill').isEnabled()) throw new Error('Active character skill button is disabled');
   await page.locator('#btnSkill').click();
   if (!await page.evaluate(() => game.charSkillUsed && game.charHintT === 5)) throw new Error('Skill button did not activate planner');
