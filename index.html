@@ -337,7 +337,7 @@
   <div class="shop-shell">
     <div class="shop-top"><button class="back-button" id="btnShopClose" title="返回" aria-label="返回">←</button><span>比基尼湾补给站 / SHOP</span><div class="wallet-badge" id="shopWallet">贝壳币 <b>0</b></div></div>
     <div class="shop-heading"><div><span class="eyebrow">UNDERSEA OUTFITTERS</span><h2>海底补给站</h2><p>1 金币 = 1 贝壳币 · 每项挑战额外 +20 · 滑板外观永久拥有</p></div><div class="shop-stamp">COLLECT<br><strong>PLAY</strong><br>REPEAT</div></div>
-    <div class="shop-inventory"><span id="shopLoadout"></span><button class="shop-buy" id="btnClassic">装备经典滑板</button></div>
+    <div class="shop-inventory"><span id="shopLoadout"></span><span class="shop-inventory-actions"><button class="shop-buy" id="btnClassic">装备经典滑板</button><button class="shop-buy" id="btnClearDecoration">清除装饰</button></span></div>
     <div class="shop-grid" id="shopGrid"></div>
     <p class="shop-note" id="shopNote" aria-live="polite"></p>
   </div>
@@ -396,12 +396,21 @@ const SAVE = {
   mute: localStorage.getItem('bbSubwayMute') === '1',
   char: localStorage.getItem('bbSubwayChar') || 'spongebob',
   wallet: 0, boards: ['classic'], board: 'classic', revive: 0,
+  decorations: [], decoration: 'none', startMagnet: 0, startBoard: 0,
+  themes: ['pineapple', 'krusty'],
 };
 const SHOP_ITEMS = [
   { id: 'bubble', type: 'board', name: '泡泡滑板', desc: '透明泡泡拖尾，像在海底顺着潮汐滑行。', price: 80, color: '#7ee8e1' },
   { id: 'krusty', type: 'board', name: '蟹堡王滑板', desc: '红黄招牌配色，速度感最强的一块板。', price: 160, color: '#f16b59' },
   { id: 'jelly', type: 'board', name: '水母霓虹板', desc: '粉紫霓虹边缘，夜间街区的限定风格。', price: 280, color: '#bd8df2' },
   { id: 'revive', type: 'revive', name: '泡泡复活券', desc: '跑酷结束时使用，保留本局金币和距离继续挑战。', price: 120, color: '#ffcf5b' },
+  { id: 'cap', type: 'decoration', name: '船长小帽', desc: '给角色戴上一顶俏皮的小帽子，跑过街区也很有派头。', price: 100, color: '#ef6f5a' },
+  { id: 'glasses', type: 'decoration', name: '海泡墨镜', desc: '清爽的海泡镜片，跳跃时会闪过一束亮光。', price: 140, color: '#5d9cec' },
+  { id: 'trail', type: 'decoration', name: '水母拖尾', desc: '身后留下轻盈的水母泡泡拖尾，连击时更加醒目。', price: 220, color: '#bd8df2' },
+  { id: 'start-magnet', type: 'consumable', name: '开局磁铁', desc: '下一局开场自动吸附金币 6 秒，用完再买。', price: 90, color: '#7ee8e1' },
+  { id: 'start-board', type: 'consumable', name: '开局冲浪板', desc: '下一局额外获得一次冲浪板保护，用完再买。', price: 120, color: '#ffd23e' },
+  { id: 'jelly-theme', type: 'theme', theme: 'jelly', name: '水母田通行证', desc: '解锁粉紫水母田街区，让场景循环更加丰富。', price: 240, color: '#bd8df2' },
+  { id: 'dome-theme', type: 'theme', theme: 'dome', name: '穹顶实验区通行证', desc: '解锁珊迪穹顶实验区，加入玻璃穹顶与气泡管道。', price: 360, color: '#66bfa7' },
 ];
 const BOARD_STYLES = {
   classic: { main: '#ffd23e', edge: '#e8a020', stripe: '#ffffff' },
@@ -414,11 +423,22 @@ function readEconomy() {
   const raw = readSaveJSON(ECONOMY_KEY, {}) || {};
   const count = n => Number.isSafeInteger(n) && n >= 0 ? n : 0;
   const boards = [...new Set(['classic', ...(Array.isArray(raw.boards) ? raw.boards.filter(id => Object.hasOwn(BOARD_STYLES, id)) : [])])];
-  return { wallet: count(raw.wallet), revive: count(raw.revive), boards, board: boards.includes(raw.board) ? raw.board : 'classic' };
+  const decorations = [...new Set(Array.isArray(raw.decorations) ? raw.decorations.filter(id => ['cap', 'glasses', 'trail'].includes(id)) : [])];
+  const themes = [...new Set(['pineapple', 'krusty', ...(Array.isArray(raw.themes) ? raw.themes.filter(id => ['jelly', 'dome'].includes(id)) : [])])];
+  return {
+    wallet: count(raw.wallet), revive: count(raw.revive), boards,
+    board: boards.includes(raw.board) ? raw.board : 'classic',
+    decorations, decoration: decorations.includes(raw.decoration) ? raw.decoration : 'none',
+    startMagnet: count(raw.startMagnet), startBoard: count(raw.startBoard), themes,
+  };
 }
 Object.assign(SAVE, readEconomy());
 function persistEconomy(next = SAVE) {
-  const record = { wallet: next.wallet, boards: next.boards, board: next.board, revive: next.revive };
+  const record = {
+    wallet: next.wallet, boards: next.boards, board: next.board, revive: next.revive,
+    decorations: next.decorations, decoration: next.decoration,
+    startMagnet: next.startMagnet, startBoard: next.startBoard, themes: next.themes,
+  };
   try {
     localStorage.setItem(ECONOMY_KEY, JSON.stringify(record));
     Object.assign(SAVE, record);
@@ -578,7 +598,7 @@ const game = {
   speed: 17,
   coins: 0, score: 0, meters: 0,
   combo: 0, comboT: 0,
-  magnetT: 0, jetT: 0, boardT: 0, boardUsed: false,
+  magnetT: 0, jetT: 0, boardT: 0, boardCharges: 1, boardUsed: false,
   jetCoinT: 0,
   charSkillUsed: false,
   charGuardT: 0,
@@ -609,7 +629,7 @@ function resetRun() {
   game.speed = 17; game.time = 0;
   game.coins = 0; game.score = 0; game.meters = 0;
   game.combo = 0; game.comboT = 0;
-  game.magnetT = 0; game.jetT = 0; game.boardT = 0; game.boardUsed = false;
+  game.magnetT = 0; game.jetT = 0; game.boardT = 0; game.boardCharges = 1; game.boardUsed = false;
   game.charSkillUsed = false; game.charGuardT = 0; game.charSlowT = 0; game.charHintT = 0; game.safeLane = -1;
   game.routeText = ''; game.routeZ = 0; game.coinScore = 0; game.taskScore = 0; game.maxCombo = 0;
   game.missionDone = [false, false, false]; game.jetCoinT = 0;
@@ -624,14 +644,18 @@ const BUILD_COLORS = ['#f6c945', '#e86a4a', '#4fb6b0', '#5d9cec', '#f39b4f', '#6
 const LANDMARKS = ['pineapple', 'moai', 'rock', 'treedome', 'krustykrab', 'chumbucket'];
 const CORAL_COLORS = ['#ff8fa8', '#ff9b5e', '#c77dff', '#ff6b6b', '#ffd23e'];
 const DISTRICTS = [
-  { name: '菠萝街', wall: ['#f6c945', '#f2a24b', '#f4d878'], roof: '#3f9c7e', sign: '#fff0a5' },
-  { name: '蟹堡码头', wall: ['#e86a4a', '#c95d48', '#f18d58'], roof: '#8f3d34', sign: '#ffd23e' },
-  { name: '水母田', wall: ['#7fc7dc', '#b78ddd', '#ed9cc6'], roof: '#6a6cc5', sign: '#ffd5ff' },
-  { name: '穹顶实验区', wall: ['#66bfa7', '#72a9d6', '#a7d8bf'], roof: '#2d7c80', sign: '#d8ffff' },
+  { id: 'pineapple', name: '菠萝街', wall: ['#f6c945', '#f2a24b', '#f4d878'], roof: '#3f9c7e', sign: '#fff0a5' },
+  { id: 'krusty', name: '蟹堡码头', wall: ['#e86a4a', '#c95d48', '#f18d58'], roof: '#8f3d34', sign: '#ffd23e' },
+  { id: 'jelly', name: '水母田', wall: ['#7fc7dc', '#b78ddd', '#ed9cc6'], roof: '#6a6cc5', sign: '#ffd5ff' },
+  { id: 'dome', name: '穹顶实验区', wall: ['#66bfa7', '#72a9d6', '#a7d8bf'], roof: '#2d7c80', sign: '#d8ffff' },
 ];
+function currentDistrictIndex(z) {
+  const raw = Math.floor(Math.max(0, z) / 88) % DISTRICTS.length;
+  return SAVE.themes.includes(DISTRICTS[raw].id) ? raw : raw < 2 ? raw : 0;
+}
 function spawnScenery() {
   const z = game.sceneryZ;
-  const district = Math.floor(Math.max(0, z) / 88) % DISTRICTS.length;
+  const district = currentDistrictIndex(z);
   const districtTheme = DISTRICTS[district];
   for (const side of [-1, 1]) {
     const r = R();
@@ -777,7 +801,8 @@ function doLane(dir) {
 }
 function doBoard() {
   if (game.state !== 'playing' || game.boardUsed || game.deadT > 0) return;
-  game.boardUsed = true; game.boardT = 4;
+  game.boardCharges = Math.max(0, game.boardCharges - 1);
+  game.boardUsed = game.boardCharges <= 0; game.boardT = 4;
   AudioSys.board();
   updatePowers();
 }
@@ -2006,11 +2031,29 @@ function drawPlayer() {
     cx.strokeStyle = '#ffe67a'; cx.fillStyle = '#ffe05926'; cx.lineWidth = 3;
     cx.beginPath(); cx.ellipse(0, -ph / 2, pw * .72, ph * .68, 0, 0, TAU); cx.fill(); cx.stroke();
   }
+  if (SAVE.decoration === 'trail') {
+    for (let i = 0; i < 4; i++) {
+      const t = (game.time * 2.2 + i * 0.22) % 1;
+      cx.fillStyle = `rgba(189,141,242,${0.56 - t * 0.38})`;
+      cx.beginPath(); cx.arc(-pw * (0.52 + t * 0.18), -ph * (0.2 + t * 0.13), Math.max(1.5, ph * (0.035 + t * 0.025)), 0, TAU); cx.fill();
+    }
+  }
   if (c.ok) {
     cx.drawImage(c.img, -pw / 2, -ph, pw, ph);
   } else { // 兜底
     cx.fillStyle = c.accent;
     cx.beginPath(); cx.ellipse(0, -ph * 0.55, pw * 0.35, ph * 0.45, 0, 0, TAU); cx.fill();
+  }
+  if (SAVE.decoration === 'cap') {
+    cx.fillStyle = '#ef6f5a';
+    cx.beginPath(); cx.ellipse(0, -ph * 0.98, pw * 0.28, ph * 0.09, 0, 0, TAU); cx.fill();
+    cx.fillRect(-pw * 0.18, -ph * 1.12, pw * 0.36, ph * 0.14);
+    cx.fillStyle = '#ffd23e'; cx.fillRect(-pw * 0.03, -ph * 1.1, pw * 0.06, ph * 0.1);
+  } else if (SAVE.decoration === 'glasses') {
+    cx.strokeStyle = '#243b5e'; cx.lineWidth = Math.max(1.5, pw * 0.035); cx.fillStyle = '#8fe8e455';
+    cx.beginPath(); cx.arc(-pw * 0.16, -ph * 0.72, pw * 0.12, 0, TAU); cx.fill(); cx.stroke();
+    cx.beginPath(); cx.arc(pw * 0.16, -ph * 0.72, pw * 0.12, 0, TAU); cx.fill(); cx.stroke();
+    cx.beginPath(); cx.moveTo(-pw * 0.04, -ph * 0.72); cx.lineTo(pw * 0.04, -ph * 0.72); cx.stroke();
   }
   cx.restore();
 }
@@ -2125,7 +2168,7 @@ function updateHUD() {
   $('routeHint').textContent = '穹顶推演 / ' + game.routeText;
   const missionHTML = '<strong>本局挑战 · 每项 +500</strong>' + MISSIONS.map((m, i) => `<span class="${game.missionDone[i] ? 'done' : ''}">${game.missionDone[i] ? '✓ ' : ''}${m.label} ${Math.min(m.value(), m.target)}/${m.target}</span>`).join('');
   if ($('hudMission').innerHTML !== missionHTML) $('hudMission').innerHTML = missionHTML;
-  const districtIndex = Math.floor(Math.max(0, game.player.z) / 88) % DISTRICTS.length;
+  const districtIndex = currentDistrictIndex(game.player.z);
   $('districtLabel').textContent = `${String(districtIndex + 1).padStart(2, '0')} / ${DISTRICTS[districtIndex].name}`;
 }
 function updatePowers() {
@@ -2137,13 +2180,14 @@ function updatePowers() {
   html += `<div class="power${game.charSkillUsed && duration <= 0 ? ' used' : ''}">✦ ${c.skill.name} · ${state}</div>`;
   if (game.magnetT > 0) html += `<div class="power">磁铁 ${game.magnetT.toFixed(1)}s<div class="bar"><i style="width:${Math.round(game.magnetT / 6 * 100)}%"></i></div></div>`;
   if (game.jetT > 0) html += `<div class="power">喷气 ${game.jetT.toFixed(1)}s<div class="bar"><i style="width:${Math.round(game.jetT / 3 * 100)}%"></i></div></div>`;
-  if (game.boardT > 0) html += `<div class="power" id="boardPill">${SHOP_ITEMS.find(i => i.id === SAVE.board)?.name || '经典滑板'} ${game.boardT.toFixed(1)}s</div>`;
+  if (game.boardT > 0) html += `<div class="power" id="boardPill">${SHOP_ITEMS.find(i => i.id === SAVE.board)?.name || '经典滑板'} ${game.boardT.toFixed(1)}s · 余 ${game.boardCharges}</div>`;
+  else if (game.boardCharges > 0) html += `<div class="power" id="boardPill">冲浪板余量 ×${game.boardCharges}</div>`;
   if (box.innerHTML !== html) box.innerHTML = html;
   $('btnSkill').disabled = !c.skill.active || game.charSkillUsed || game.state !== 'playing';
   const skillHTML = !c.skill.active ? '金光护体<small>被动生效</small>' : game.charSkillUsed ? `${c.skill.name} 已使用<small>每局一次</small>` : `${c.skill.name}<small>E 键 / 点按</small>`;
   if ($('btnSkill').innerHTML !== skillHTML) $('btnSkill').innerHTML = skillHTML;
   $('btnBoard').disabled = game.boardUsed;
-  const boardHTML = game.boardT > 0 ? '冲浪板保护中<small>躲避接下来的障碍</small>' : game.boardUsed ? '冲浪板已使用<small>每局一次</small>' : '冲浪板<small>空格 / 双击 / 点按</small>';
+  const boardHTML = game.boardT > 0 ? '冲浪板保护中<small>躲避接下来的障碍</small>' : game.boardUsed ? '冲浪板已用完<small>本局可购买额外次数</small>' : `冲浪板 ×${game.boardCharges}<small>空格 / 双击 / 点按</small>`;
   if ($('btnBoard').innerHTML !== boardHTML) $('btnBoard').innerHTML = boardHTML;
 }
 
@@ -2187,6 +2231,10 @@ function gotoSelect() {
 function startRun() {
   game.state = 'playing';
   resetRun();
+  game.boardCharges = 1 + (SAVE.startBoard > 0 ? 1 : 0);
+  if (SAVE.startBoard > 0) SAVE.startBoard--;
+  if (SAVE.startMagnet > 0) { game.magnetT = 6; SAVE.startMagnet--; }
+  persistEconomy();
   game.runOpen = true;
   showHUD();
   updatePowers(); updateHUD();
@@ -2214,7 +2262,7 @@ function reviveRun() {
   if (game.state !== 'over' || SAVE.revive <= 0 || game.reviveUsed) return;
   SAVE.revive--; game.reviveUsed = true; persistEconomy();
   game.deadT = 0; game.reviveGuardT = 2.2; game.player.y = 0; game.player.vy = 0; game.player.rollT = 0;
-  game.boardT = Math.max(game.boardT, 1.5); game.boardUsed = true;
+  game.boardT = Math.max(game.boardT, 1.5); game.boardCharges = 0; game.boardUsed = true;
   game.state = 'playing'; showHUD(); updatePowers(); updateHUD();
   skillFlash('泡泡复活 · 继续冲刺', '#7ee8e1');
   AudioSys.resume(); AudioSys.bgmStart();
@@ -2231,33 +2279,64 @@ function closeShop() {
   else if (shopReturn === 'pause') { game.state = 'paused'; show('pause'); }
   else gotoTitle();
 }
+function shopToast(text) {
+  const note = $('shopNote');
+  note.textContent = text;
+  note.classList.remove('pop'); void note.offsetWidth; note.classList.add('pop');
+}
 function renderShop() {
   updateWalletBadges();
   const grid = $('shopGrid');
   grid.innerHTML = SHOP_ITEMS.map(item => {
-    const owned = item.type === 'board' ? SAVE.boards.includes(item.id) : false;
-    const equipped = item.type === 'board' && SAVE.board === item.id;
-    const canBuy = SAVE.wallet >= item.price && !owned;
-    const art = item.type === 'board' ? `<div class="board-art" style="--art:${item.color}"><i></i></div>` : '<div class="revive-art"></div>';
-    const action = item.type === 'board' ? (equipped ? '已装备' : owned ? '装备' : `购买 ${item.price}`) : `购买 ${item.price}`;
-    return `<article class="shop-item${owned || equipped ? ' selected' : ''}" data-owned="${owned}" data-id="${item.id}"><div class="shop-art">${art}</div><h3>${item.name}</h3><p>${item.desc}</p><div class="shop-price"><strong>${owned || equipped ? (equipped ? '使用中' : '已拥有') : item.price + ' 贝壳币'}</strong><button class="shop-buy" data-buy="${item.id}" ${!canBuy && !owned ? 'disabled' : ''}>${action}</button></div></article>`;
+    const owned = item.type === 'board' ? SAVE.boards.includes(item.id)
+      : item.type === 'decoration' ? SAVE.decorations.includes(item.id)
+        : item.type === 'theme' ? SAVE.themes.includes(item.theme) : false;
+    const equipped = item.type === 'board' ? SAVE.board === item.id : item.type === 'decoration' && SAVE.decoration === item.id;
+    const count = item.id === 'revive' ? SAVE.revive : item.id === 'start-magnet' ? SAVE.startMagnet : item.id === 'start-board' ? SAVE.startBoard : 0;
+    const art = item.type === 'board' ? `<div class="board-art" style="--art:${item.color}"><i></i></div>`
+      : item.type === 'revive' ? '<div class="revive-art"></div>'
+        : item.type === 'decoration' ? `<div class="cosmetic-art cosmetic-${item.id}"></div>`
+          : item.type === 'consumable' ? `<div class="consumable-art consumable-${item.id}"></div>`
+            : `<div class="theme-art theme-${item.theme}"></div>`;
+    const action = item.type === 'board' || item.type === 'decoration'
+      ? (equipped ? '已装备' : owned ? '装备' : `购买 ${item.price}`)
+      : item.type === 'theme' ? (owned ? '已解锁' : `解锁 ${item.price}`) : `购买 ${item.price}`;
+    const primaryState = equipped ? '使用中' : owned ? '已拥有' : item.type === 'theme' ? '未解锁' : item.type === 'consumable' || item.type === 'revive' ? `库存 ${count}` : item.price + ' 贝壳币';
+    const canBuy = SAVE.wallet >= item.price && !equipped && !(owned && item.type === 'theme');
+    return `<article class="shop-item${owned || equipped ? ' selected' : ''}" data-owned="${owned}" data-type="${item.type}" data-id="${item.id}"><div class="shop-art">${art}</div><h3>${item.name}</h3><p>${item.desc}</p><div class="shop-price"><strong>${primaryState}</strong><button class="shop-buy" data-buy="${item.id}" ${!canBuy ? 'disabled' : ''}>${action}</button></div></article>`;
   }).join('');
-  $('shopLoadout').textContent = `当前滑板：${SAVE.board === 'classic' ? '经典滑板' : SHOP_ITEMS.find(i => i.id === SAVE.board)?.name || '经典滑板'} · 复活券 ${SAVE.revive} 张`;
+  const boardName = SAVE.board === 'classic' ? '经典滑板' : SHOP_ITEMS.find(i => i.id === SAVE.board)?.name || '经典滑板';
+  const decorationName = SAVE.decoration === 'none' ? '无装饰' : SHOP_ITEMS.find(i => i.id === SAVE.decoration)?.name || '无装饰';
+  $('shopLoadout').textContent = `当前滑板：${boardName} · 装饰：${decorationName} · 复活券 ${SAVE.revive} · 磁铁 ${SAVE.startMagnet} · 加板 ${SAVE.startBoard}`;
   $('btnClassic').disabled = SAVE.board === 'classic';
+  $('btnClearDecoration').disabled = SAVE.decoration === 'none';
   grid.querySelectorAll('[data-buy]').forEach(button => button.addEventListener('click', () => buyShopItem(button.dataset.buy)));
 }
 function buyShopItem(id) {
   const item = SHOP_ITEMS.find(candidate => candidate.id === id);
   if (!item) return;
   if (item.type === 'board' && SAVE.boards.includes(item.id)) {
-    SAVE.board = item.id; persistEconomy(); renderShop(); $('shopNote').textContent = `已装备${item.name}。`;
+    SAVE.board = item.id; persistEconomy(); renderShop(); shopToast(`已装备${item.name}。`);
     return;
   }
-  if (SAVE.wallet < item.price) { $('shopNote').textContent = `还差 ${item.price - SAVE.wallet} 贝壳币。`; return; }
+  if (item.type === 'decoration' && SAVE.decorations.includes(item.id)) {
+    SAVE.decoration = item.id; persistEconomy(); renderShop(); shopToast(`已装备${item.name}。`);
+    return;
+  }
+  if (item.type === 'theme' && SAVE.themes.includes(item.theme)) {
+    shopToast(`${item.name}已经解锁。`);
+    return;
+  }
+  if (SAVE.wallet < item.price) { shopToast(`还差 ${item.price - SAVE.wallet} 贝壳币。`); return; }
   SAVE.wallet -= item.price;
   if (item.type === 'board') { SAVE.boards.push(item.id); SAVE.board = item.id; }
-  else SAVE.revive++;
+  else if (item.type === 'decoration') { SAVE.decorations.push(item.id); SAVE.decoration = item.id; }
+  else if (item.type === 'theme') SAVE.themes.push(item.theme);
+  else if (item.type === 'revive') SAVE.revive++;
+  else if (item.id === 'start-magnet') SAVE.startMagnet++;
+  else if (item.id === 'start-board') SAVE.startBoard++;
   persistEconomy(); renderShop(); $('shopNote').textContent = `已获得${item.name}。`;
+  shopToast(item.type === 'theme' ? `已解锁${item.name}，下一段旅程会出现新街区。` : `已获得${item.name}。`);
   AudioSys.resume(); AudioSys.tone(784, .12, 'triangle', .16);
 }
 
@@ -2369,7 +2448,8 @@ $('btnShop').addEventListener('click', () => openShop('title'));
 $('btnShopClose').addEventListener('click', closeShop);
 $('btnShopPause').addEventListener('click', () => openShop('pause'));
 $('btnShopOver').addEventListener('click', () => openShop('over'));
-$('btnClassic').addEventListener('click', () => { SAVE.board = 'classic'; persistEconomy(); renderShop(); $('shopNote').textContent = '已装备经典滑板。'; });
+$('btnClassic').addEventListener('click', () => { SAVE.board = 'classic'; persistEconomy(); renderShop(); shopToast('已装备经典滑板。'); });
+$('btnClearDecoration').addEventListener('click', () => { SAVE.decoration = 'none'; persistEconomy(); renderShop(); shopToast('已清除角色装饰。'); });
 $('btnRevive').addEventListener('click', reviveRun);
 $('btnHow').addEventListener('click', () => { screens.title.hidden = true; screens.howto.hidden = false; });
 $('btnHowClose').addEventListener('click', () => { screens.howto.hidden = true; screens.title.hidden = false; });
