@@ -1,0 +1,12 @@
+# Local runtime and editor state
+.mimosa/
+.playwright-cli/
+output/playwright/
+
+# Local preview logs
+*.log
+
+# OS/editor files
+Thumbs.db
+.DS_Store
+.vscode/
