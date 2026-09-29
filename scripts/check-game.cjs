@@ -180,15 +180,30 @@ async (page) => {
       cp.classList.remove('go');
     });
     const bands = await page.evaluate(() => {
-      const box = (sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom) }; };
+      const box = (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) };
+      };
+      const pillRects = [...document.querySelectorAll('.hud-top .pill')].map(el => {
+        const r = el.getBoundingClientRect();
+        return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) };
+      });
       return {
         pills: box('.hud-top'), powers: box('#hudPowers'), mission: box('#hudMission'),
         combo: box('#comboPop'), banner: box('#districtBanner'),
+        pillRects, pause: box('#btnPause'), horizon: Math.round(cam.horizon),
       };
     });
     const topBlock = Math.max(bands.pills.bottom, bands.powers.bottom, bands.mission.bottom);
     if (bands.combo.top < topBlock) throw new Error('Combo prompt overlaps the top HUD: ' + JSON.stringify(bands));
-    if (bands.combo.bottom > bands.banner.top) throw new Error('Combo prompt overlaps the district banner: ' + JSON.stringify(bands));
+    if (bands.combo.top < bands.banner.bottom) throw new Error('Combo prompt overlaps the district banner: ' + JSON.stringify(bands));
+    if (bands.banner.bottom > bands.horizon - 6) throw new Error('District banner drops below the horizon: ' + JSON.stringify(bands));
+    const hits = (a, b) => a && b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    for (const rect of [...bands.pillRects, bands.pause]) {
+      if (hits(bands.banner, rect)) throw new Error('District banner overlaps the top pills: ' + JSON.stringify(bands));
+    }
     hudBands.push(bands);
     await page.screenshot({ path: `output/playwright/hud-bands-${width}x${height}.png` });
   }

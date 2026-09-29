@@ -75,16 +75,16 @@ button:focus-visible { outline: 3px solid #ec684e; outline-offset: 5px; }
 .pill.coin { background: var(--yellow); }
 .hud-character { left: 14px; top: auto; bottom: 94px; right: auto; background: #f5fcfadd; border: 0; border-radius: 4px; font-size: 11px; padding: 6px 9px; }
 .district-label { position: absolute; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%); color: white; font-size: 11px; font-weight: 900; letter-spacing: 1px !important; text-shadow: 0 1px 4px #174953; }
-.district-banner { position: absolute; left: 50%; top: var(--district-top, 32%); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 18px 10px; border: 2px solid #fff; border-radius: 6px; background: #174953d9; color: #fff; box-shadow: 0 4px #0d2d36aa; text-align: center; animation: districtArrive .65s ease both; }
+.district-banner { position: absolute; left: 50%; top: var(--banner-top, 16px); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border: 2px solid #fff; border-radius: 999px; background: #174953d9; color: #fff; box-shadow: 0 3px #0d2d36aa; white-space: nowrap; animation: districtArrive .65s ease both; }
 .district-banner[hidden] { display: none; }
-.district-banner small { color: #bffce0; font-size: 9px; letter-spacing: 2px !important; }
-.district-banner strong { font-size: clamp(20px, 4vw, 34px); line-height: 1; }
+.district-banner small { color: #bffce0; font-size: 8px; letter-spacing: 1px !important; opacity: .9; }
+.district-banner strong { font-size: clamp(15px, 2.6vw, 20px); line-height: 1.1; }
 @keyframes districtArrive { 0% { opacity: 0; transform: translateX(-50%) translateY(-16px) scale(.86); } 70% { opacity: 1; transform: translateX(-50%) translateY(2px) scale(1.04); } 100% { transform: translateX(-50%) translateY(0) scale(1); } }
-.hud-powers { top: 88px; left: 14px; gap: 6px; }
-.power { border: 0; border-radius: 4px; padding: 6px 10px; font-size: 11px; gap: 7px; color: var(--ink); background: #f5fcfae8; }
-.power .bar { width: 56px; height: 5px; }
+.hud-powers { top: var(--stack-top, 88px); left: 14px; gap: 6px; flex-direction: row; flex-wrap: wrap; align-items: flex-start; max-width: min(62vw, 620px); }
+.power { border: 0; border-radius: 4px; padding: 5px 9px; font-size: 11px; gap: 6px; color: var(--ink); background: #f5fcfae8; }
+.power .bar { width: 44px; height: 5px; }
 .power.used { opacity: .65; }
-.hud-mission { position: absolute; top: 88px; right: 14px; max-width: 165px; text-align: right; font-size: 11px; color: white; text-shadow: 0 1px 4px #133d58; line-height: 1.7; }
+.hud-mission { position: absolute; top: var(--stack-top, 88px); right: 14px; max-width: 165px; text-align: right; font-size: 11px; color: white; text-shadow: 0 1px 4px #133d58; line-height: 1.7; }
 .hud-mission strong { display: block; color: #ffe77d; font-size: 10px; }
 .hud-mission span { display: block; }
 .hud-mission .done { color: #bffce0; }
@@ -320,7 +320,23 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .char-card .cname { font-size: 10px; }
   #btnGo { width: 100%; min-width: 0; }
   #comboPop { font-size: 19px; }
-  .district-banner { padding: 5px 12px 7px; gap: 2px; }
-  .district-banner strong { font-size: 18px; }
+  .hud-powers { max-width: min(60vw, 216px); gap: 4px; }
+  .power { padding: 4px 8px; font-size: 10px; gap: 5px; }
+  .power .bar { width: 34px; height: 4px; }
+  .hud-mission { font-size: 9px; line-height: 1.5; max-width: 104px; }
+  .hud-mission strong { font-size: 9px; }
+  .district-banner { padding: 5px 12px; gap: 6px; }
+  .district-banner strong { font-size: 15px; }
   .district-banner small { font-size: 8px; letter-spacing: 1px !important; }
+}
+
+/* 矮屏手机：把顶部面板再压薄一层，给跑酷视野腾出空间 */
+@media (max-width: 700px) and (max-height: 780px) {
+  .hud-powers { max-width: min(64vw, 228px); gap: 3px; }
+  .power { padding: 3px 7px; font-size: 9.5px; gap: 4px; }
+  .power .bar { width: 30px; height: 4px; }
+  .hud-mission { font-size: 8.5px; line-height: 1.45; max-width: 100px; }
+  .hud-mission strong { display: none; }
+  .district-banner { padding: 4px 11px; }
+  .district-banner strong { font-size: 14px; }
 }

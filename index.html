@@ -298,7 +298,7 @@
   <div class="hud-powers" id="hudPowers"></div>
   <div class="hud-character" id="hudCharacter"><i></i><span>海绵碧莲 · 金光护体</span></div>
   <div id="districtLabel" class="district-label">01 / 菠萝街</div>
-  <div id="districtBanner" class="district-banner" hidden><small>ENTERING DISTRICT</small><strong>菠萝街</strong></div>
+  <div id="districtBanner" class="district-banner" hidden><small>ENTERING</small><strong>菠萝街</strong></div>
   <div class="hud-mission" id="hudMission"></div>
   <div class="route-hint" id="routeHint" hidden></div>
   <div class="hud-bottom"><div class="combo-meter"><span id="comboLabel">连击 0</span><span class="combo-track"><i id="comboBar"></i></span></div><div class="hud-actions"><button id="btnSkill" class="skill-button" title="使用角色技能（E）">角色技能 <small>E 键 / 点按</small></button><button id="btnBoard" class="board-button" title="冲浪板（空格或双击）">冲浪板 <small>空格 / 双击</small></button></div></div>
@@ -2362,16 +2362,26 @@ function layoutHudBands() {
   const hud = $('hud');
   if (!hud || hud.hidden) return;
   const bottomOf = el => el ? el.getBoundingClientRect().bottom : 0;
-  const gap = portrait ? 10 : 14;
-  const topBlock = Math.max(
-    bottomOf(document.querySelector('.hud-top')),
-    bottomOf($('hudPowers')),
-    bottomOf($('hudMission')),
-  );
-  const comboTop = Math.round(topBlock + gap);
+  const pills = document.querySelector('.hud-top');
+  const pillsBottom = pills ? Math.round(pills.getBoundingClientRect().bottom) : 64;
+  const bannerH = portrait ? 34 : 40;
+  const gap = portrait ? 10 : 12;
+
+  // 宽屏天空够大：街区提示直接放在顶部中央；窄屏顶部被数据条占满，就紧贴其下方
+  const wide = W >= 760;
+  const bannerTop = wide ? Math.round(Math.max(18, pillsBottom * 0.62)) : Math.round(pillsBottom + 6);
+  if (!wide) hud.style.setProperty('--stack-top', Math.round(bannerTop + bannerH + 6) + 'px');
+  else hud.style.removeProperty('--stack-top');
+  hud.style.setProperty('--banner-top', bannerTop + 'px');
+
+  const topBlock = Math.max(pillsBottom, bottomOf($('hudPowers')), bottomOf($('hudMission')));
   const comboBand = portrait ? 34 : 46;
+  // 连击提示放在所有顶部面板下方，并且尽量停在天际线以上
+  const ceiling = cam.horizon - 6;
+  const lowestComboTop = ceiling - comboBand;
+  let comboTop = Math.round(topBlock + gap);
+  if (comboTop > lowestComboTop) comboTop = Math.max(Math.round(topBlock + 4), Math.round(lowestComboTop));
   hud.style.setProperty('--combo-top', comboTop + 'px');
-  hud.style.setProperty('--district-top', Math.round(comboTop + comboBand + gap) + 'px');
 }
 function updateHUD() {
   hudCoins.textContent = game.coins;
