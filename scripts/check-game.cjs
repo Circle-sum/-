@@ -72,6 +72,45 @@ async (page) => {
     clean(0); game.player.z = 1600; camUpdate(1); renderWorld(0);
     assert(project(0, .1, cam.z + .5) !== null && project(0, .1, game.player.z + 160) !== null, 'Track projection remains valid past 1000 meters');
     assert(propTailZ({ type: 'train', z: cam.z - 2, len: 12 }) > cam.z - 3, 'Train cleanup waits for the rear carriage');
+
+    // 跑道连续：枕木与钢轨共用近端裁切，屏幕底部仍有枕木纹理
+    assert(GROUND_NEAR_DZ <= 0.5, 'Track ties cull at the camera near plane');
+    clean(0); game.player.z = 1200; camUpdate(1); game.state = 'paused'; renderWorld(0);
+    {
+      const cvEl = document.getElementById('game'), c2 = cvEl.getContext('2d');
+      const y0 = Math.floor(cvEl.height * 0.75);
+      const img = c2.getImageData(0, y0, cvEl.width, cvEl.height - y0).data;
+      let tiePixels = 0;
+      for (let i = 0; i < img.length; i += 4 * 37) {
+        const r = img[i], g = img[i + 1], b = img[i + 2];
+        if ((Math.abs(r - 122) < 18 && Math.abs(g - 90) < 18 && Math.abs(b - 60) < 18) ||
+            (Math.abs(r - 110) < 18 && Math.abs(g - 80) < 18 && Math.abs(b - 53) < 18)) tiePixels++;
+      }
+      assert(tiePixels > 40, 'Track ties stay drawn down to the screen bottom');
+    }
+
+    // 街区规则：250 米一段、顺序随机且不连续重复、每进入一次提示一次
+    clean(0);
+    {
+      const plan = Array.from({ length: 24 }, (_, i) => districtIdForSegment(i));
+      assert(plan.every(id => SAVE.themes.includes(id)), 'District plan only uses unlocked districts');
+      assert(plan.every((id, i) => i === 0 || id !== plan[i - 1]), 'District plan never repeats back to back');
+      assert(new Set(plan).size > 1, 'District order rotates instead of staying fixed');
+      assert(DISTRICTS.every(d => d.palette && d.palette.skyTop && d.palette.sand && d.palette.road), 'Every district has its own environment palette');
+      assert(new Set(DISTRICTS.map(d => d.palette.skyTop)).size === DISTRICTS.length, 'District sky colors all differ');
+      assert(new Set(DISTRICTS.map(d => d.palette.sand)).size === DISTRICTS.length, 'District ground colors all differ');
+      assert(districtPaletteAt(10).skyTop !== districtPaletteAt(DISTRICT_METERS - 1).skyTop, 'Environment color blends before the boundary');
+    }
+    game.districtSegment = 0; game.districtBannerT = 0;
+    game.meters = DISTRICT_METERS - 5; updateDistrictState(0.016);
+    assert(game.districtSegment === 0 && game.districtBannerT === 0, 'No repeat prompt inside one district');
+    game.meters = DISTRICT_METERS + 5; updateDistrictState(0.016);
+    assert(game.districtSegment === 1 && game.districtBannerT > 2, 'Each district entry shows the name once');
+    game.districtBannerT = 0; game.meters = DISTRICT_METERS + 60; updateDistrictState(0.016);
+    assert(game.districtBannerT === 0, 'Staying in a district keeps the banner hidden');
+    game.meters = DISTRICT_METERS * 2 + 5; updateDistrictState(0.016);
+    assert(game.districtSegment === 2 && game.districtBannerT > 2, 'Crossing a second boundary prompts again');
+
     clean(3); gotoSelect(); buildCharList();
     return results;
   });
@@ -93,14 +132,33 @@ async (page) => {
   if (await page.evaluate(() => game.state) !== 'paused') throw new Error('Escape pause failed');
   await page.getByRole('button', { name: '换角色', exact: true }).click();
   const layout = [];
-  for (const [width, height] of [[390,844], [360,640], [844,390], [1280,720]]) {
+  for (const [width, height] of [[390,844], [360,640], [412,740], [412,860], [844,390], [1280,720]]) {
     await page.setViewportSize({ width, height });
     const metrics = await page.evaluate(() => {
       const main = document.getElementById('select');
       const button = document.getElementById('btnGo');
-      return { width: innerWidth, overflow: main.scrollWidth > innerWidth + 1, buttonWidth: button.getBoundingClientRect().width, scrollable: main.scrollHeight > main.clientHeight };
+      const box = (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) };
+      };
+      const stage = box('.portrait-stage'), img = box('#heroPortrait');
+      const role = box('.profile-role'), cards = box('.chars');
+      const profile = box('.selected-profile'), bottom = box('.select-bottom');
+      return {
+        width: innerWidth,
+        overflow: main.scrollWidth > innerWidth + 1,
+        buttonWidth: button.getBoundingClientRect().width,
+        scrollable: main.scrollHeight > main.clientHeight,
+        portraitInsideStage: !img || !stage ? false : img.top >= stage.top - 1 && img.bottom <= stage.bottom + 1 && img.left >= stage.left - 1 && img.right <= stage.right + 1,
+        roleClearsCards: !role || !cards ? true : role.bottom <= cards.top,
+        profileClearsBottom: !profile || !bottom ? true : profile.bottom <= bottom.top,
+      };
     });
     if (metrics.overflow || metrics.buttonWidth < 100) throw new Error('Invalid responsive layout: ' + JSON.stringify(metrics));
+    if (!metrics.portraitInsideStage) throw new Error('Portrait image is clipped by its card: ' + JSON.stringify(metrics));
+    if (!metrics.roleClearsCards || !metrics.profileClearsBottom) throw new Error('Select screen blocks overlap: ' + JSON.stringify(metrics));
     layout.push(metrics);
     await page.screenshot({ path: `output/playwright/select-${width}x${height}.png` });
   }
@@ -108,11 +166,38 @@ async (page) => {
   await page.getByRole('button', { name: '出发', exact: true }).click();
   await page.evaluate(() => { game.state = 'paused'; game.player.z = 110; game.sceneryZ = 102; game.props = []; while (game.sceneryZ < 220) spawnScenery(); game.props.push({ type: 'train', x: -2.2, z: 132, len: 12, hw: .95, h: 2.35, color: '#ea9172', style: 'submarine' }, { type: 'hurdle', x: 0, z: 145, app: 'shell' }, { type: 'hurdle', x: 2.2, z: 149, app: 'crate' }); coinLine(2, 118, 10); game.meters = game.player.z * .62; camUpdate(1); updateRouteHint(); updateHUD(); updatePowers(); renderWorld(0); });
   await page.screenshot({ path: 'output/playwright/game-desktop.png' });
+
+  // 连击提示与街区提示固定两条带：不压顶部面板、互不重叠
+  const hudBands = [];
+  for (const [width, height] of [[360,640], [390,700], [412,740], [390,844], [1280,720]]) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => {
+      game.state = 'paused';
+      game.magnetT = 5.6; game.jetT = 2.9; game.boardT = 3.9; game.districtBannerT = 2.2;
+      updatePowers(); updateHUD(); layoutHudBands();
+      const cp = document.getElementById('comboPop');
+      cp.textContent = '55 连击!';
+      cp.classList.remove('go');
+    });
+    const bands = await page.evaluate(() => {
+      const box = (sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom) }; };
+      return {
+        pills: box('.hud-top'), powers: box('#hudPowers'), mission: box('#hudMission'),
+        combo: box('#comboPop'), banner: box('#districtBanner'),
+      };
+    });
+    const topBlock = Math.max(bands.pills.bottom, bands.powers.bottom, bands.mission.bottom);
+    if (bands.combo.top < topBlock) throw new Error('Combo prompt overlaps the top HUD: ' + JSON.stringify(bands));
+    if (bands.combo.bottom > bands.banner.top) throw new Error('Combo prompt overlaps the district banner: ' + JSON.stringify(bands));
+    hudBands.push(bands);
+    await page.screenshot({ path: `output/playwright/hud-bands-${width}x${height}.png` });
+  }
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => { camUpdate(1); renderWorld(0); });
   await page.screenshot({ path: 'output/playwright/game-mobile.png' });
   await page.evaluate(() => { game.charIdx = 0; gotoTitle(); buildCharList(); });
   await page.screenshot({ path: 'output/playwright/title-mobile.png' });
   if (errors.length) throw new Error('Page errors: ' + errors.join('; '));
-  return { passed: results.length, results, layout, browserErrors: errors };
+  return { passed: results.length, results, layout, hudBands, browserErrors: errors };
 }

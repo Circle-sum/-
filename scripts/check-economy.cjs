@@ -20,7 +20,11 @@ async (page) => {
   await page.locator('.shop-item').filter({ hasText: '开局磁铁' }).getByRole('button', { name: '购买 90' }).click();
   await page.locator('.shop-item').filter({ hasText: '开局冲浪板' }).getByRole('button', { name: '购买 120' }).click();
   await page.locator('.shop-item').filter({ hasText: '水母田通行证' }).getByRole('button', { name: '解锁 240' }).click();
-  if (await page.evaluate(() => SAVE.startMagnet !== 1 || SAVE.startBoard !== 1 || !SAVE.themes.includes('jelly') || currentDistrictIndex(176) !== 2)) throw new Error('Shop extras did not persist');
+  if (await page.evaluate(() => {
+    const plan = Array.from({ length: 12 }, (_, i) => districtIdForSegment(i));
+    const onlyUnlocked = plan.every(id => SAVE.themes.includes(id));
+    return SAVE.startMagnet !== 1 || SAVE.startBoard !== 1 || !SAVE.themes.includes('jelly') || !onlyUnlocked || !plan.includes('jelly');
+  })) throw new Error('Shop extras did not persist');
   await page.evaluate(() => { startRun(); game.state = 'paused'; openShop('title'); });
   if (await page.evaluate(() => game.magnetT !== 6 || game.boardCharges !== 2 || SAVE.startMagnet !== 0 || SAVE.startBoard !== 0)) throw new Error('Start consumables did not activate');
   await page.evaluate(() => { SAVE.wallet = 0; persistEconomy(); });
